@@ -1,0 +1,86 @@
+package lab.dev.med.univ.feature.reporting.data.entity
+
+import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportSourceSettings
+import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportUpload
+
+fun DamumedReportSourceSettingsEntity.toModel() = DamumedReportSourceSettings(
+    id = id,
+    mode = mode,
+    updatedAt = updatedAt,
+    updatedBy = updatedBy,
+    version = version,
+)
+
+fun DamumedReportSourceSettings.toEntity() = DamumedReportSourceSettingsEntity(
+    id = id,
+    mode = mode,
+    updatedAt = updatedAt,
+    updatedBy = updatedBy,
+    version = version,
+)
+
+fun DamumedReportUploadEntity.toModel() = DamumedReportUpload(
+    id = id,
+    reportKind = reportKind,
+    sourceMode = sourceMode,
+    originalFileName = originalFileName,
+    storedFileName = storedFileName,
+    storagePath = storagePath,
+    format = format,
+    contentType = contentType,
+    checksumSha256 = checksumSha256,
+    sizeBytes = sizeBytes,
+    uploadedAt = uploadedAt,
+    uploadedBy = uploadedBy,
+    parseStatus = parseStatus,
+    parseStartedAt = parseStartedAt,
+    parseCompletedAt = parseCompletedAt,
+    parseErrorMessage = parseErrorMessage,
+    parsedSheetCount = parsedSheetCount,
+    parsedRowCount = parsedRowCount,
+    parsedCellCount = parsedCellCount,
+    parsedMergedRegionCount = parsedMergedRegionCount,
+    detectedReportTitle = detectedReportTitle,
+    detectedPeriodText = detectedPeriodText,
+    normalizationStatus = normalizationStatus,
+    normalizationStartedAt = normalizationStartedAt,
+    normalizationCompletedAt = normalizationCompletedAt,
+    normalizationErrorMessage = normalizationErrorMessage,
+    normalizedSectionCount = normalizedSectionCount,
+    normalizedFactCount = normalizedFactCount,
+    normalizedDimensionCount = normalizedDimensionCount,
+    version = version,
+)
+
+fun DamumedReportUpload.toEntity() = DamumedReportUploadEntity(
+    id = id,
+    reportKind = reportKind,
+    sourceMode = sourceMode,
+    originalFileName = originalFileName,
+    storedFileName = storedFileName,
+    storagePath = storagePath,
+    format = format,
+    contentType = contentType,
+    checksumSha256 = checksumSha256,
+    sizeBytes = sizeBytes,
+    uploadedAt = uploadedAt,
+    uploadedBy = uploadedBy,
+    parseStatus = parseStatus,
+    parseStartedAt = parseStartedAt,
+    parseCompletedAt = parseCompletedAt,
+    parseErrorMessage = parseErrorMessage,
+    parsedSheetCount = parsedSheetCount,
+    parsedRowCount = parsedRowCount,
+    parsedCellCount = parsedCellCount,
+    parsedMergedRegionCount = parsedMergedRegionCount,
+    detectedReportTitle = detectedReportTitle,
+    detectedPeriodText = detectedPeriodText,
+    normalizationStatus = normalizationStatus,
+    normalizationStartedAt = normalizationStartedAt,
+    normalizationCompletedAt = normalizationCompletedAt,
+    normalizationErrorMessage = normalizationErrorMessage,
+    normalizedSectionCount = normalizedSectionCount,
+    normalizedFactCount = normalizedFactCount,
+    normalizedDimensionCount = normalizedDimensionCount,
+    version = version,
+)

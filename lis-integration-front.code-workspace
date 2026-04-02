@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"path": "../lis-integration-front"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"sqltools.connections": [
+			{
+				"ssh": "Disabled",
+				"previewLimit": 50,
+				"server": "localhost",
+				"port": 5432,
+				"driver": "PostgreSQL",
+				"name": "univ",
+				"database": "univ",
+				"username": "postgres"
+			}
+		]
+	}
+}

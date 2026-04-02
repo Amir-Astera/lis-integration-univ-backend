@@ -1,0 +1,588 @@
+<html lang="ru" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" vid="3">
+    <title vid="4">LIMS Dashboard</title>
+    <style vid="5">
+        
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+        :root {
+            
+            --bg-app: #F5F7FA;
+            --bg-surface: #FFFFFF;
+            
+            --blue-primary: #1E58B6; 
+            --blue-dark: #153E82; 
+            --blue-medium: #4B7FD1; 
+            --blue-light: #7AA2E0; 
+            --blue-palest: #A8C4EF; 
+            
+            --text-main: var(--blue-dark);
+            --text-secondary: #6B8BB9; 
+            --text-tertiary: #92A9C8;
+            --text-inverse: #FFFFFF;
+            
+            --border-subtle: #DDE5F0;
+            --border-focus: var(--blue-primary);
+            
+            
+            --status-critical: #D94056; 
+            --status-warning: #E0891A;
+            --status-good: #2E9E6A;
+
+            
+            --radius-sm: 4px;
+            --radius-md: 8px; 
+            
+            
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+
+            font-family: 'Inter', -apple-system, sans-serif;
+            font-size: 13px; 
+            color: var(--text-main);
+            background-color: var(--bg-app);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        
+        h1, h2, h3, h4 {
+            font-weight: 500;
+            letter-spacing: -0.01em;
+            color: var(--blue-primary);
+        }
+
+        h1 { font-size: 24px; }
+        h2 { font-size: 16px; margin-bottom: var(--space-4); }
+        h3 { font-size: 14px; margin-bottom: var(--space-2); }
+        
+        .text-large { font-size: 32px; font-weight: 400; letter-spacing: -0.02em; }
+        .text-small { font-size: 11px; color: var(--text-secondary); }
+        .text-medium { font-size: 13px; color: var(--text-secondary); }
+        
+        
+        .header {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 var(--space-5);
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: var(--space-5);
+        }
+
+        .logo {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--blue-primary);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .logo-mark {
+            width: 16px;
+            height: 16px;
+            background-color: var(--blue-primary);
+            border-radius: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: var(--space-5);
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 13px;
+            padding: var(--space-2) 0;
+            transition: color 0.2s;
+        }
+
+        .nav-link.active {
+            color: var(--blue-primary);
+            border-bottom: 2px solid var(--blue-primary);
+        }
+
+        .user-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            color: var(--text-secondary);
+        }
+
+        .main-container {
+            flex: 1;
+            padding: var(--space-5);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-5);
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .integration-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-surface);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .status-dot.sync { background-color: var(--status-good); }
+
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: var(--space-4);
+        }
+
+        
+        .panel {
+            background: var(--bg-surface);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+        }
+
+        
+        .panel.accent-block {
+            background-color: var(--blue-primary);
+            color: var(--text-inverse);
+            border: none;
+        }
+
+        .panel.accent-block h2, 
+        .panel.accent-block .text-secondary,
+        .panel.accent-block .text-small {
+            color: var(--blue-palest);
+        }
+
+        .panel.accent-block .text-large {
+            color: var(--text-inverse);
+        }
+
+        
+        .kpi-row {
+            grid-column: span 12;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-4);
+        }
+
+        .kpi-value {
+            margin-top: auto;
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-2);
+        }
+
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .data-table th {
+            padding: 0 0 var(--space-3) 0;
+            color: var(--text-tertiary);
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .data-table td {
+            padding: var(--space-3) 0;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 13px;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        
+        .eq-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .eq-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .eq-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .eq-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .eq-status {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            background: #F0F4F8;
+            color: var(--text-secondary);
+        }
+
+        .eq-status.running { background: #E8F3ED; color: var(--status-good); }
+        .eq-status.error { background: #FAEAEC; color: var(--status-critical); }
+        .eq-status.maintenance { background: #FCF3E8; color: var(--status-warning); }
+
+        
+        .tat-chart-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            margin-top: var(--space-2);
+            flex: 1;
+            justify-content: center;
+        }
+
+        .tat-bar-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .tat-label {
+            width: 100px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .tat-track {
+            flex: 1;
+            background: var(--bg-app);
+            height: 24px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tat-fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding-right: var(--space-2);
+            justify-content: flex-end;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-inverse);
+        }
+
+        
+        .tat-fill.dept-1 { background-color: var(--blue-primary); width: 85%; }
+        .tat-fill.dept-2 { background-color: var(--blue-medium); width: 62%; }
+        .tat-fill.dept-3 { background-color: var(--blue-light); width: 45%; }
+        .tat-fill.dept-4 { background-color: var(--blue-palest); width: 30%; color: var(--blue-primary); }
+
+        
+        .tag-critical {
+            color: var(--status-critical);
+            font-weight: 500;
+        }
+
+        .qc-graph-placeholder {
+            height: 120px;
+            width: 100%;
+            margin-top: var(--space-3);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            background-image: 
+                linear-gradient(to right, transparent 95%, var(--border-subtle) 95%),
+                linear-gradient(to bottom, var(--bg-surface) 49%, var(--blue-palest) 50%, var(--bg-surface) 51%);
+            background-size: 20px 100%, 100% 100%;
+            position: relative;
+        }
+
+        .qc-point {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--blue-primary);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        
+        .mod-tat { grid-column: span 7; }
+        .mod-eq { grid-column: span 5; }
+        .mod-reagents { grid-column: span 6; }
+        .mod-qc { grid-column: span 6; }
+
+    </style>
+</head>
+<body vid="6">
+
+    <header class="header" vid="7">
+        <div class="header-left" vid="8">
+            <div class="logo" vid="9">
+                <div class="logo-mark" vid="10"></div>
+                LIMS Damumed
+            </div>
+            <nav class="nav-links" vid="11">
+                <a href="#" class="nav-link active" vid="12">Панель управления</a>
+                <a href="#" class="nav-link" vid="13">Регистратура</a>
+                <a href="#" class="nav-link" vid="14">Рабочие листы</a>
+                <a href="#" class="nav-link" vid="15">Оборудование</a>
+                <a href="#" class="nav-link" vid="16">Склад</a>
+                <a href="#" class="nav-link" vid="17">Отчеты</a>
+            </nav>
+        </div>
+        <div class="header-right" vid="18">
+            <div class="user-meta" vid="19">
+                <span vid="20">г. Астана</span>
+                <span style="color: var(--border-subtle);" vid="21">|</span>
+                <span vid="22">Руководитель лаборатории</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container" vid="23">
+        
+        <div class="page-header" vid="24">
+            <div vid="25">
+                <h1 vid="26">Сводка лаборатории</h1>
+                <div class="text-medium" style="margin-top: var(--space-1);" vid="27">Данные обновлены сегодня, 14:32</div>
+            </div>
+            <div class="integration-status" vid="28">
+                <div class="status-dot sync" vid="29"></div>
+                Синхронизация с КМИС Damumed активна
+            </div>
+        </div>
+
+        <div class="dashboard-grid" vid="30">
+            
+            
+            <div class="kpi-row" vid="31">
+                
+                <div class="panel accent-block" vid="32">
+                    <h2 vid="33">Критические пробы</h2>
+                    <div class="kpi-value" vid="34">
+                        <span class="text-large" vid="35">14</span>
+                        <span class="text-small" vid="36">превышен ТАТ</span>
+                    </div>
+                </div>
+                
+                <div class="panel" vid="37">
+                    <h2 vid="38">Проб за сегодня</h2>
+                    <div class="kpi-value" vid="39">
+                        <span class="text-large" style="color: var(--blue-primary);" vid="40">1,248</span>
+                        <span class="text-small" vid="41">+12% ко вчерашнему</span>
+                    </div>
+                </div>
+
+                <div class="panel" vid="42">
+                    <h2 vid="43">Ожидают валидации</h2>
+                    <div class="kpi-value" vid="44">
+                        <span class="text-large" style="color: var(--blue-primary);" vid="45">86</span>
+                        <span class="text-small" vid="46">результатов</span>
+                    </div>
+                </div>
+
+                <div class="panel" vid="47">
+                    <h2 vid="48">Загрузка анализаторов</h2>
+                    <div class="kpi-value" vid="49">
+                        <span class="text-large" style="color: var(--blue-primary);" vid="50">78%</span>
+                        <span class="text-small" vid="51">средняя</span>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="panel mod-tat" vid="52">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;" vid="53">
+                    <div vid="54">
+                        <h2 vid="55">Аналитика ТАТ (Время выполнения)</h2>
+                        <div class="text-medium" vid="56">Среднее время по отделам, минуты</div>
+                    </div>
+                    <div class="text-large" style="color: var(--blue-primary);" vid="57">42м</div>
+                </div>
+                
+                <div class="tat-chart-container" vid="58">
+                    <div class="tat-bar-row" vid="59">
+                        <div class="tat-label" vid="60">Биохимия</div>
+                        <div class="tat-track" vid="61"><div class="tat-fill dept-1" vid="62">55м</div></div>
+                    </div>
+                    <div class="tat-bar-row" vid="63">
+                        <div class="tat-label" vid="64">Гематология</div>
+                        <div class="tat-track" vid="65"><div class="tat-fill dept-2" vid="66">38м</div></div>
+                    </div>
+                    <div class="tat-bar-row" vid="67">
+                        <div class="tat-label" vid="68">ИФА</div>
+                        <div class="tat-track" vid="69"><div class="tat-fill dept-3" vid="70">28м</div></div>
+                    </div>
+                    <div class="tat-bar-row" vid="71">
+                        <div class="tat-label" vid="72">Общеклиника</div>
+                        <div class="tat-track" vid="73"><div class="tat-fill dept-4" vid="74">18м</div></div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="panel mod-eq" vid="75">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-4);" vid="76">
+                    <h2 vid="77">Парк оборудования</h2>
+                    <a href="#" style="font-size: 12px; color: var(--blue-primary); text-decoration: none;" vid="78">Управление</a>
+                </div>
+                
+                <div class="eq-list" vid="79">
+                    <div class="eq-item" vid="80">
+                        <div class="eq-details" vid="81">
+                            <span style="font-weight: 500;" vid="82">Mindray BS-600 M</span>
+                            <span class="text-small" vid="83">Биохимия • ID: M-01</span>
+                        </div>
+                        <div class="eq-status running" vid="84">В работе</div>
+                    </div>
+                    <div class="eq-item" vid="85">
+                        <div class="eq-details" vid="86">
+                            <span style="font-weight: 500;" vid="87">Mindray BS-430</span>
+                            <span class="text-small" vid="88">Биохимия • ID: M-02</span>
+                        </div>
+                        <div class="eq-status running" vid="89">В работе</div>
+                    </div>
+                    <div class="eq-item" vid="90">
+                        <div class="eq-details" vid="91">
+                            <span style="font-weight: 500;" vid="92">iFlash 1800</span>
+                            <span class="text-small" vid="93">ИХЛА • ID: I-01</span>
+                        </div>
+                        <div class="eq-status error" vid="94">Калибровка</div>
+                    </div>
+                    <div class="eq-item" vid="95">
+                        <div class="eq-details" vid="96">
+                            <span style="font-weight: 500;" vid="97">Vision Pro</span>
+                            <span class="text-small" vid="98">Гематология • ID: V-01</span>
+                        </div>
+                        <div class="eq-status maintenance" vid="99">Промывка</div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="panel mod-reagents" vid="100">
+                <h2 vid="101">Контроль реагентов и расходников</h2>
+                <table class="data-table" vid="102">
+                    <thead vid="103">
+                        <tr vid="104">
+                            <th vid="105">Наименование</th>
+                            <th vid="106">Анализатор</th>
+                            <th vid="107">Остаток</th>
+                            <th vid="108">Срок годности</th>
+                        </tr>
+                    </thead>
+                    <tbody vid="109">
+                        <tr vid="110">
+                            <td vid="111">Глюкоза (GLU) кассета</td>
+                            <td class="text-secondary" vid="112">BS-600 M</td>
+                            <td vid="113">120 тестов</td>
+                            <td vid="114">12.11.2023</td>
+                        </tr>
+                        <tr vid="115">
+                            <td vid="116">АЛТ (ALT) флакон</td>
+                            <td class="text-secondary" vid="117">BS-430</td>
+                            <td vid="118">45 тестов</td>
+                            <td class="tag-critical" vid="119">Завтра</td>
+                        </tr>
+                        <tr vid="120">
+                            <td vid="121">Реагент Тиреотропный (ТТГ)</td>
+                            <td class="text-secondary" vid="122">iFlash 1800</td>
+                            <td class="tag-critical" vid="123">0 тестов</td>
+                            <td class="tag-critical" vid="124">Истек</td>
+                        </tr>
+                        <tr vid="125">
+                            <td vid="126">Diluent D-30</td>
+                            <td class="text-secondary" vid="127">Vision Pro</td>
+                            <td vid="128">18 л</td>
+                            <td vid="129">05.02.2024</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            
+            <div class="panel mod-qc" vid="130">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;" vid="131">
+                    <div vid="132">
+                        <h2 vid="133">Контроль качества (Графики)</h2>
+                        <div class="text-medium" vid="134">Последний прогон: Глюкоза, Норма</div>
+                    </div>
+                    <div class="text-medium" vid="135">Правило 1-2s</div>
+                </div>
+                
+                <div class="qc-graph-placeholder" vid="136">
+                    
+                    <div class="qc-point" style="left: 10%; top: 48%;" vid="137"></div>
+                    <div class="qc-point" style="left: 30%; top: 45%;" vid="138"></div>
+                    <div class="qc-point" style="left: 50%; top: 52%;" vid="139"></div>
+                    <div class="qc-point" style="left: 70%; top: 35%;" vid="140"></div>
+                    <div class="qc-point" style="left: 90%; top: 55%; background: var(--status-warning);" vid="141"></div>
+                    <div style="position: absolute; right: var(--space-2); top: 10%; font-size: 10px; color: var(--text-tertiary);" vid="142">+2SD</div>
+                    <div style="position: absolute; right: var(--space-2); bottom: 10%; font-size: 10px; color: var(--text-tertiary);" vid="143">-2SD</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+
+</body></html>
