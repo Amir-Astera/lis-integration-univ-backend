@@ -10,8 +10,11 @@ enum class AnalyzerType {
     URINALYSIS,
     ESR,
     IMMUNOASSAY,
+    IMMUNOLOGY,
     BLOOD_GAS,
     IMMUNOHEMATOLOGY,
+    HBA1C,
+    POCT,
     POCT_COAGULATION,
     POCT_IMMUNOASSAY,
     INFRASTRUCTURE,
@@ -175,6 +178,8 @@ enum class TubeColor {
     YELLOW,
     GREEN,
     GRAY,
+    HEMATOLOGY,
+    COAGULATION,
 }
 
 enum class AnalyzerLogSourceType {
