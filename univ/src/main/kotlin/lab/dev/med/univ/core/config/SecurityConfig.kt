@@ -1,14 +1,12 @@
 package project.gigienist_reports.core.config
 
-import com.google.firebase.auth.FirebaseAuth
 import project.gigienist_reports.core.config.properties.SecurityProperties
 import project.gigienist_reports.core.security.UnauthorizedAuthenticationEntryPoint
-import project.gigienist_reports.core.security.firebase.FirebaseTokenAuthenticationManager
-import project.gigienist_reports.feature.authorization.domain.usecases.SaveSessionUserUseCase
+import project.gigienist_reports.core.security.local.LocalTokenAuthenticationManager
+import project.gigienist_reports.feature.authorization.domain.services.LocalSessionAuthenticationService
 import org.springframework.boot.actuate.autoconfigure.security.reactive.EndpointRequest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
- import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpMethod
 import org.springframework.security.authentication.ReactiveAuthenticationManager
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -23,34 +21,23 @@ import org.springframework.web.reactive.config.WebFluxConfigurer
 import project.gigienist_reports.core.security.TokenAuthenticationConverter
 import project.gigienist_reports.core.security.firebase.FirebaseHeadersExchangeMatcher
 
+// Firebase Auth removed. All profiles now use LocalSessionAuthenticationService.
+// To enable Firebase: activate the "firebase" Spring profile.
 
 @Configuration
-@Profile("!dev & !local")
 @EnableWebFluxSecurity
 @EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true, prePostEnabled = true)
 class SecurityConfig(
-        private val securityProperties: SecurityProperties
+    private val securityProperties: SecurityProperties,
 ) : WebFluxConfigurer {
-
-//    override fun addCorsMappings(corsRegistry: CorsRegistry) {
-//        corsRegistry.addMapping("/**")
-//            .allowedMethods("*")
-//                .allowedOrigins(*securityProperties.allowedOrigins.toTypedArray())
-//                .allowedHeaders(*securityProperties.allowedHeaders.toTypedArray())
-//                .allowedMethods(*securityProperties.allowedMethods.toTypedArray())
-//                .exposedHeaders(*securityProperties.exposedHeaders.toTypedArray())
-////                .allowCredentials(true)
-//                .maxAge(3600)
-//    }
 
     @Bean
     fun springSecurityFilterChain(
         http: ServerHttpSecurity,
         entryPoint: UnauthorizedAuthenticationEntryPoint,
         authWebFilter: AuthenticationWebFilter,
-        corsSource: CorsConfigurationSource
+        corsSource: CorsConfigurationSource,
     ): SecurityWebFilterChain {
-
         http.csrf { it.disable() }
             .formLogin { it.disable() }
             .logout { it.disable() }
@@ -77,17 +64,10 @@ class SecurityConfig(
         return authenticationWebFilter
     }
 
-//    @Bean
-//    fun authWebFilter(authenticationManager: ReactiveAuthenticationManager): AuthenticationWebFilter {
-//        val authenticationWebFilter = AuthenticationWebFilter(authenticationManager)
-//        authenticationWebFilter.setServerAuthenticationConverter(CookieAuthenticationConverter())
-//        authenticationWebFilter.setRequiresAuthenticationMatcher(CookieExchangeMatcher())
-//        authenticationWebFilter.setSecurityContextRepository(WebSessionServerSecurityContextRepository())
-//        return authenticationWebFilter
-//    }
-
     @Bean
-    fun authenticationManager(auth: FirebaseAuth, saveSessionUserUseCase: SaveSessionUserUseCase): ReactiveAuthenticationManager {
-        return FirebaseTokenAuthenticationManager(auth, saveSessionUserUseCase)
+    fun authenticationManager(
+        localSessionAuthenticationService: LocalSessionAuthenticationService,
+    ): ReactiveAuthenticationManager {
+        return LocalTokenAuthenticationManager(localSessionAuthenticationService)
     }
 }

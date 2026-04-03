@@ -10,6 +10,7 @@ import lab.dev.med.univ.feature.reagents.data.repository.AnalyzerLogUploadReposi
 import lab.dev.med.univ.feature.reagents.data.repository.AnalyzerRepository
 import lab.dev.med.univ.feature.reagents.data.repository.ParsedAnalyzerSampleRepository
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogParseUnsupportedException
+import lab.dev.med.univ.feature.reagents.domain.services.LogAnomalyAnalysisService
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogUploadNotFoundException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogValidationException
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogParseStatus
@@ -80,6 +81,7 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
     private val parsedAnalyzerSampleRepository: ParsedAnalyzerSampleRepository,
     private val applogsParserService: ApplogsParserService,
     private val errorsXmlParserService: ErrorsXmlParserService,
+    private val logAnomalyAnalysisService: LogAnomalyAnalysisService,
 ) : AnalyzerLogUploadIngestionService {
 
     override suspend fun upload(
@@ -135,11 +137,22 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
     }
 
     override suspend fun parseAndPersist(uploadId: String): AnalyzerLogUpload {
+        // Always re-read fresh entity from DB to avoid OptimisticLockingFailureException
+        // when multiple Applogs files are uploaded for the same day or in quick succession.
         val existing = uploadRepository.findById(uploadId)?.toModel()
             ?: throw AnalyzerLogUploadNotFoundException(uploadId)
 
+        // Only start processing if not already in progress/parsed to prevent duplicate runs
+        if (existing.parseStatus == AnalyzerLogParseStatus.PROCESSING) {
+            return existing
+        }
+
+        // Re-read right before save to get latest version
+        val freshForProcessing = uploadRepository.findById(uploadId)?.toModel()
+            ?: throw AnalyzerLogUploadNotFoundException(uploadId)
+
         val processing = uploadRepository.save(
-            existing.copy(
+            freshForProcessing.copy(
                 parseStatus = AnalyzerLogParseStatus.PROCESSING,
                 parseStartedAt = LocalDateTime.now(),
                 parseCompletedAt = null,
@@ -154,13 +167,19 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
                 AnalyzerLogSourceType.USB_EXPORT -> throw AnalyzerLogParseUnsupportedException(processing.sourceType)
             }
         } catch (ex: Exception) {
-            uploadRepository.save(
-                processing.copy(
-                    parseStatus = AnalyzerLogParseStatus.FAILED,
-                    parseCompletedAt = LocalDateTime.now(),
-                    parseErrorMessage = ex.message,
-                ).toEntity(),
-            )
+            // Re-read again before marking as failed to avoid version conflict
+            val freshForFailed = uploadRepository.findById(uploadId)?.toModel()
+            if (freshForFailed != null) {
+                runCatching {
+                    uploadRepository.save(
+                        freshForFailed.copy(
+                            parseStatus = AnalyzerLogParseStatus.FAILED,
+                            parseCompletedAt = LocalDateTime.now(),
+                            parseErrorMessage = ex.message,
+                        ).toEntity(),
+                    )
+                }
+            }
             throw ex
         }
     }
@@ -172,7 +191,10 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         parsedAnalyzerSampleRepository.deleteAllByLogUploadId(processing.id)
         parsedAnalyzerSampleRepository.saveAll(parsed.samples.map { it.toEntity() }).toList()
 
-        val completed = processing.copy(
+        // Re-read fresh entity from DB to avoid optimistic locking conflict
+        // (version may have changed if another thread touched the record)
+        val fresh = uploadRepository.findById(processing.id)?.toModel() ?: processing
+        val completed = fresh.copy(
             parseStatus = AnalyzerLogParseStatus.PARSED,
             parseCompletedAt = LocalDateTime.now(),
             parseErrorMessage = null,
@@ -185,29 +207,67 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
             logPeriodStart = parsed.logPeriodStart,
             logPeriodEnd = parsed.logPeriodEnd,
         )
-        return uploadRepository.save(completed.toEntity()).toModel()
+        val saved = uploadRepository.save(completed.toEntity()).toModel()
+        logAnomalyAnalysisService.buildAnomaliesFromUpload(processing.id)
+        return saved
     }
 
     private suspend fun parseErrorsXmlUpload(processing: AnalyzerLogUpload): AnalyzerLogUpload {
-        val content = readStoredContent(processing.storagePath)
-        val parsed = errorsXmlParserService.parse(content)
+        val bytes = readStoredBytes(processing.storagePath)
+        val parsed = errorsXmlParserService.parse(bytes)
 
         parsedAnalyzerSampleRepository.deleteAllByLogUploadId(processing.id)
 
-        val completed = processing.copy(
+        val convertedSamples = parsed.samples.map { record ->
+            ParsedAnalyzerSample(
+                id = UUID.randomUUID().toString(),
+                logUploadId = processing.id,
+                analyzerId = processing.analyzerId,
+                sampleTimestamp = LocalDateTime.now(),
+                barcode = record.barcode,
+                deviceSystemName = record.deviceSystemName,
+                deviceName = record.deviceName,
+                lisAnalyzerId = null,
+                testMode = record.testMode,
+                bloodMode = record.bloodMode,
+                takeMode = record.takeMode,
+                orderResearchId = null,
+                orderId = null,
+                serviceId = null,
+                serviceName = null,
+                hasLisOrder = false,
+                sampleRequestCount = 0,
+                wbcValue = record.wbcValue,
+                rbcValue = record.rbcValue,
+                hgbValue = record.hgbValue,
+                pltValue = record.pltValue,
+                classification = SampleClassification.XML_RESULT,
+                classificationReason = "Parsed from errors.xml — results present without LIS confirmation",
+            )
+        }
+
+        if (convertedSamples.isNotEmpty()) {
+            parsedAnalyzerSampleRepository.saveAll(convertedSamples.map { it.toEntity() }).toList()
+        }
+
+        // Re-read fresh entity from DB to get current version before final save
+        val fresh = uploadRepository.findById(processing.id)?.toModel() ?: processing
+        val completed = fresh.copy(
             parseStatus = AnalyzerLogParseStatus.PARSED,
             parseCompletedAt = LocalDateTime.now(),
             parseErrorMessage = null,
-            totalLinesParsed = content.lineSequence().count(),
+            totalLinesParsed = String(bytes, Charsets.UTF_8).lineSequence().count(),
             totalSamplesFound = parsed.sampleCount,
             legitimateSamples = 0,
-            unauthorizedSamples = 0,
+            unauthorizedSamples = parsed.sampleCount,
             washTestSamples = 0,
             rerunSamples = 0,
             logPeriodStart = null,
             logPeriodEnd = null,
         )
-        return uploadRepository.save(completed.toEntity()).toModel()
+        val saved = uploadRepository.save(completed.toEntity()).toModel()
+        logAnomalyAnalysisService.buildAnomaliesFromUpload(processing.id)
+        return saved
     }
 
     private fun validateFileName(sourceType: AnalyzerLogSourceType, filename: String) {
@@ -259,6 +319,16 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         }
         return withContext(Dispatchers.IO) {
             String(Files.readAllBytes(filePath), Charsets.UTF_8)
+        }
+    }
+
+    private suspend fun readStoredBytes(relativeStoragePath: String): ByteArray {
+        val filePath = location.resolve(relativeStoragePath).normalize()
+        if (!filePath.startsWith(location) || !Files.exists(filePath)) {
+            throw AnalyzerLogValidationException("Stored analyzer log file is missing or inaccessible.")
+        }
+        return withContext(Dispatchers.IO) {
+            Files.readAllBytes(filePath)
         }
     }
 

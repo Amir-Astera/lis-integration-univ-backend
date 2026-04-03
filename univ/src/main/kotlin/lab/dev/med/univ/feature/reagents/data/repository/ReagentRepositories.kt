@@ -52,6 +52,15 @@ interface ParsedAnalyzerSampleRepository : CoroutineCrudRepository<ParsedAnalyze
         analyzerId: String,
         classification: SampleClassification,
     ): Flow<ParsedAnalyzerSampleEntity>
+    fun findAllBySampleTimestampBetweenOrderBySampleTimestampAsc(
+        from: java.time.LocalDateTime,
+        to: java.time.LocalDateTime,
+    ): Flow<ParsedAnalyzerSampleEntity>
+    fun findAllByAnalyzerIdAndSampleTimestampBetweenOrderBySampleTimestampAsc(
+        analyzerId: String,
+        from: java.time.LocalDateTime,
+        to: java.time.LocalDateTime,
+    ): Flow<ParsedAnalyzerSampleEntity>
     suspend fun deleteAllByLogUploadId(logUploadId: String)
 }
 

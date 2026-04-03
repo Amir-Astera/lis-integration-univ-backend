@@ -13,8 +13,9 @@ import org.springframework.context.annotation.Primary
 import java.io.FileInputStream
 import java.io.IOException
 
+// Firebase Auth is disabled. To re-enable: set profile "firebase" and configure google credentials.
 @Configuration
-@Profile("!dev & !local")
+@Profile("firebase")
 class FirebaseConfig(
     private val securityProperties: SecurityProperties
 ) {

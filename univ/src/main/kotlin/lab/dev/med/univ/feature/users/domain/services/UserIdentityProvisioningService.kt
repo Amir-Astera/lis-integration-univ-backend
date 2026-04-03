@@ -13,7 +13,7 @@ interface UserIdentityProvisioningService {
 }
 
 @Service
-@Profile("!dev & !local")
+@Profile("firebase")
 class FirebaseUserIdentityProvisioningService(
     private val firebaseConfig: FirebaseConfig,
 ) : UserIdentityProvisioningService {
@@ -29,7 +29,7 @@ class FirebaseUserIdentityProvisioningService(
 }
 
 @Service
-@Profile("dev | local")
+@Profile("!firebase")
 class LocalUserIdentityProvisioningService(
     private val localSessionAuthenticationService: LocalSessionAuthenticationService,
 ) : UserIdentityProvisioningService {

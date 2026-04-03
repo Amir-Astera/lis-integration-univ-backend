@@ -9,7 +9,12 @@ import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedFactR
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedReportUploadRepository
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedLabReportKind
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReferralRegistrationSummary
+import lab.dev.med.univ.feature.reporting.domain.models.ReferralDailyRegistrationStat
+import lab.dev.med.univ.feature.reporting.domain.models.ReferralDepartmentStat
+import lab.dev.med.univ.feature.reporting.domain.models.ReferralFundingSourceStat
 import lab.dev.med.univ.feature.reporting.domain.models.ReferralRegistrationPeriodSummary
+import lab.dev.med.univ.feature.reporting.domain.models.ReferralServiceStat
+import lab.dev.med.univ.feature.reporting.domain.models.ReferralStatusStat
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -34,47 +39,114 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
             .findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(latestUpload.id)
             .toList()
 
+        val factIds = facts.map { it.entityId }
+        val dimensionsByFactId = if (factIds.isNotEmpty()) {
+            factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(factIds).toList()
+                .groupBy { it.factId }
+        } else {
+            emptyMap()
+        }
+
         val factEnvelopes = facts.map { fact ->
             FactEnvelope(
                 fact = fact,
-                dimensions = factDimensionRepository
-                    .findAllByFactIdOrderByAxisKeyAsc(fact.entityId)
-                    .toList()
+                dimensions = dimensionsByFactId[fact.entityId] ?: emptyList(),
             )
         }
 
         val rows = factEnvelopes.mapNotNull { envelope -> extractRow(envelope) }
 
-        // Количество исследований - уникальное количество зарегистрированных услуг (уникальные комбинации referralNumber + service)
         val uniqueResearchKeys = rows.map { "${it.referralNumber}::${it.service}" }.toSet()
         val researchCount = uniqueResearchKeys.size
 
-        // Количество пациентов - уникальные пациенты
         val uniquePatients = rows.mapNotNull { it.patientKey }.toSet()
         val patientCount = uniquePatients.size
 
-        // Количество отделений - уникальные patientDepartment
-        val uniqueDepartments = rows.mapNotNull { it.patientDepartment }.toSet()
+        val uniqueDepartments = rows.mapNotNull { it.patientDepartment?.takeIf { d -> d.isNotBlank() } }.toSet()
         val departmentCount = uniqueDepartments.size
 
-        // Отправленные результаты - те которые со статусом "Результат отправлен"
         val sentResultsCount = rows.count { it.status.equals("Результат отправлен", ignoreCase = true) }
-
-        // Количество материалов - общее количество (не уникальное) из поля material
+        val pendingCount = rows.count { !it.status.equals("Результат отправлен", ignoreCase = true) }
         val materialsCount = rows.count { !it.material.isNullOrBlank() }
+        val emergencyCount = rows.count { it.emergencyFlag?.trim()?.equals("да", ignoreCase = true) == true }
+
+        // Department stats
+        val departmentStats = rows
+            .groupBy { it.patientDepartment?.trim()?.takeIf { d -> d.isNotBlank() } ?: "Не указано" }
+            .map { (dept, deptRows) ->
+                val completed = deptRows.count { it.status.equals("Результат отправлен", ignoreCase = true) }
+                val inProgress = deptRows.count { it.status.contains("в работе", ignoreCase = true) || it.status.contains("выполняется", ignoreCase = true) }
+                ReferralDepartmentStat(
+                    department = dept,
+                    total = deptRows.size,
+                    completed = completed,
+                    pending = deptRows.size - completed - inProgress,
+                    inProgress = inProgress,
+                )
+            }
+            .sortedByDescending { it.total }
+            .take(20)
+
+        // Status stats
+        val statusStats = rows
+            .groupBy { it.status.trim().takeIf { s -> s.isNotBlank() } ?: "Не указан" }
+            .map { (status, statusRows) -> ReferralStatusStat(status = status, count = statusRows.size) }
+            .sortedByDescending { it.count }
+
+        // Service stats (top 30)
+        val serviceStats = rows
+            .groupBy { it.service.trim() }
+            .map { (svc, svcRows) ->
+                val completed = svcRows.count { it.status.equals("Результат отправлен", ignoreCase = true) }
+                ReferralServiceStat(
+                    service = svc,
+                    total = svcRows.size,
+                    completed = completed,
+                    pending = svcRows.size - completed,
+                )
+            }
+            .sortedByDescending { it.total }
+            .take(30)
+
+        // Funding source stats
+        val fundingSourceStats = rows
+            .filter { !it.fundingSource.isNullOrBlank() }
+            .groupBy { it.fundingSource!!.trim() }
+            .map { (src, srcRows) -> ReferralFundingSourceStat(fundingSource = src, count = srcRows.size) }
+            .sortedByDescending { it.count }
+
+        // Daily registration — by referral_date if available, else skip
+        val dailyStats = rows
+            .filter { !it.referralDate.isNullOrBlank() }
+            .groupBy { it.referralDate!!.trim().take(10) }
+            .map { (date, dateRows) ->
+                ReferralDailyRegistrationStat(
+                    date = date,
+                    registered = dateRows.size,
+                    completed = dateRows.count { it.status.equals("Результат отправлен", ignoreCase = true) },
+                )
+            }
+            .sortedBy { it.date }
 
         return DamumedReferralRegistrationSummary(
             generatedAt = Instant.now(),
             periodLabel = latestUpload.detectedPeriodText ?: "",
             sourceUploadId = latestUpload.id,
             summary = ReferralRegistrationPeriodSummary(
-                label = "За месяц",
+                label = "За период",
                 researchCount = researchCount,
                 patientCount = patientCount,
                 departmentCount = departmentCount,
                 sentResultsCount = sentResultsCount,
+                pendingCount = pendingCount,
                 materialsCount = materialsCount,
-            )
+                emergencyCount = emergencyCount,
+            ),
+            departmentStats = departmentStats,
+            statusStats = statusStats,
+            serviceStats = serviceStats,
+            fundingSourceStats = fundingSourceStats,
+            dailyRegistrationStats = dailyStats,
         )
     }
 
@@ -106,6 +178,16 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
         val patientDepartment = envelope.dimensions
             .firstOrNull { it.axisKey == "patient_department" }?.rawValue?.trim()
 
+        val fundingSource = envelope.dimensions
+            .firstOrNull { it.axisKey == "funding_source" }?.rawValue?.trim()
+
+        val emergencyFlag = envelope.dimensions
+            .firstOrNull { it.axisKey == "emergency_flag" }?.rawValue?.trim()
+
+        val referralDate = envelope.dimensions
+            .firstOrNull { it.axisKey == "referral_date" }?.rawValue?.trim()
+            ?: envelope.dimensions.firstOrNull { it.axisKey == "registration_date" }?.rawValue?.trim()
+
         return ReferralJournalRow(
             referralNumber = referralNumber,
             service = service,
@@ -113,6 +195,9 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
             patientKey = patientKey,
             material = material,
             patientDepartment = patientDepartment,
+            fundingSource = fundingSource,
+            emergencyFlag = emergencyFlag,
+            referralDate = referralDate,
         )
     }
 
@@ -128,5 +213,8 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
         val patientKey: String?,
         val material: String?,
         val patientDepartment: String?,
+        val fundingSource: String?,
+        val emergencyFlag: String?,
+        val referralDate: String?,
     )
 }

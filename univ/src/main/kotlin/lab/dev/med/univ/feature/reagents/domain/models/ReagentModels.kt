@@ -203,6 +203,7 @@ enum class SampleClassification {
     QC,
     CALIBRATION,
     ERROR,
+    XML_RESULT,  // Parsed from errors.xml — sample had result data but no LIS context
 }
 
 data class Analyzer(

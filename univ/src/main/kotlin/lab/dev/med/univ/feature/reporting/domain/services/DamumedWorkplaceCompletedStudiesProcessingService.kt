@@ -75,6 +75,7 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
 
         return try {
             cleanupExistingNormalizedData(upload.id)
+            cleanupPreviousUploadsForReportKind(upload.reportKind, upload.id)
             val profile = DamumedReportSchemaCatalog.profileFor(upload.reportKind)
             val counters = parseAndPersist(started, workbook, profile)
             started.copy(
@@ -121,7 +122,6 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
         val totalMetric = profile.metrics.firstOrNull { it.representsTotal } ?: completedMetric
         val aggregatedRecords = linkedMapOf<String, WorkplaceFactAccumulator>()
         val processedCells = mutableSetOf<String>()
-        val processedFacts = mutableSetOf<String>()
         var foundBlockHeader = false
 
         repeat(workbook.numberOfSheets) { sheetIndex ->
@@ -152,6 +152,10 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
                 if (columns.isEmpty()) {
                     return@forEachIndexed
                 }
+                // processedFacts is scoped per-block to avoid suppressing valid data
+                // from different structural blocks that share the same service+workplace combo.
+                // processedCells remains global to deduplicate merged cell reads across the sheet.
+                val blockProcessedFacts = mutableSetOf<String>()
                 parseBlockRows(
                     view = view,
                     sheetId = sheetId,
@@ -165,7 +169,7 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
                     periodText = periodText,
                     accumulator = aggregatedRecords,
                     processedCells = processedCells,
-                    processedFacts = processedFacts,
+                    processedFacts = blockProcessedFacts,
                 )
             }
         }
@@ -652,6 +656,19 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
         }
     }
 
+    private suspend fun cleanupPreviousUploadsForReportKind(reportKind: DamumedLabReportKind, currentUploadId: String) {
+        val previousUploads = uploadRepository.findAllByReportKindOrderByUploadedAtDesc(reportKind)
+            .toList()
+            .filter { it.id != currentUploadId }
+        for (prev in previousUploads) {
+            cleanupExistingNormalizedData(prev.id)
+            val model = prev.toModel().copy(
+                normalizationStatus = DamumedReportNormalizationStatus.SUPERSEDED,
+            )
+            uploadRepository.save(model.toEntity())
+        }
+    }
+
     private suspend fun cleanupExistingNormalizedData(uploadId: String) {
         val factIds = normalizedFactRepository.findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(uploadId)
             .toList()
@@ -730,7 +747,12 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
     }
 
     private fun isAggregateServiceLabel(text: String): Boolean {
-        return normalizeText(text) in setOf("всего", "итого")
+        val normalized = normalizeText(text)
+        return normalized in setOf("всего", "итого") ||
+            normalized.startsWith("итого по") ||
+            normalized.startsWith("всего по") ||
+            normalized.startsWith("итого: ") ||
+            normalized.startsWith("всего: ")
     }
 
     private fun looksLikePeriodText(text: String): Boolean {

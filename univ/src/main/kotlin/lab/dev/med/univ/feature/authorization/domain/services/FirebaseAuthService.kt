@@ -26,7 +26,7 @@ interface FirebaseAuthService {
 }
 
 @Service
-@Profile("!dev & !local")
+@Profile("firebase")
 class FirebaseAuthServiceImpl(
     webClientBuilder: WebClient.Builder,
     private val securityProperties: SecurityProperties,

@@ -46,6 +46,31 @@ class UserController(
 //    private val getUserPatientUseCase: GetUserPatientUseCase
 ): Controller(logger) {
 
+    /**
+     * List users for admin UI (e.g. dashboard). Delegates to the same logic as [getAll] but returns
+     * a plain JSON array for `GET /api/users`, which the frontend expects.
+     */
+    @SecurityRequirement(name = "security_auth")
+    @ApiResponses(ApiResponse(responseCode = "200", description = "List of users (admin)"))
+    @GetMapping
+    suspend fun list(
+        @RequestParam(required = false) email: String?,
+        @RequestParam(required = false, defaultValue = "0") page: Int,
+        @RequestParam(required = false, defaultValue = "500") size: Int,
+        @Parameter(hidden = true) exchange: ServerWebExchange,
+    ): ResponseEntity<List<UserAggregate>> {
+        try {
+            ensureAdmin(exchange)
+            val result = getAllUseCase(email, page, size)
+            @Suppress("UNCHECKED_CAST")
+            val content = result["content"] as List<UserAggregate>
+            return HttpStatus.OK.response(content)
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message)
+        }
+    }
+
     @SecurityRequirement(name = "security_auth")
     @CreateApiResponses
     @PostMapping

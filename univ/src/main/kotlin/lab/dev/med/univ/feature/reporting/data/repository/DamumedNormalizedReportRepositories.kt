@@ -33,5 +33,7 @@ interface DamumedNormalizedFactRepository : CoroutineCrudRepository<DamumedNorma
 interface DamumedNormalizedFactDimensionRepository : CoroutineCrudRepository<DamumedNormalizedFactDimensionEntity, String> {
     fun findAllByFactIdOrderByAxisKeyAsc(factId: String): Flow<DamumedNormalizedFactDimensionEntity>
 
+    fun findAllByFactIdInOrderByAxisKeyAsc(factIds: Collection<String>): Flow<DamumedNormalizedFactDimensionEntity>
+
     suspend fun deleteAllByFactId(factId: String)
 }

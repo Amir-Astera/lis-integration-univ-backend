@@ -19,6 +19,7 @@ enum class DamumedReportNormalizationStatus {
     PROCESSING,
     NORMALIZED,
     FAILED,
+    SUPERSEDED,
 }
 
 enum class DamumedLabReportKind(

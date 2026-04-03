@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import lab.dev.med.univ.feature.reagents.domain.models.ParsedAnalyzerSample
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
 import org.springframework.stereotype.Service
-import java.io.StringReader
+import java.io.ByteArrayInputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.ArrayDeque
@@ -18,7 +18,7 @@ interface ApplogsParserService {
 }
 
 interface ErrorsXmlParserService {
-    fun parse(content: String): ParsedErrorsXmlPayload
+    fun parse(bytes: ByteArray): ParsedErrorsXmlPayload
 }
 
 @Service
@@ -406,9 +406,9 @@ internal class ApplogsParserServiceImpl(
 @Service
 internal class ErrorsXmlParserServiceImpl : ErrorsXmlParserService {
 
-    override fun parse(content: String): ParsedErrorsXmlPayload {
+    override fun parse(bytes: ByteArray): ParsedErrorsXmlPayload {
         val factory = XMLInputFactory.newInstance()
-        val reader = factory.createXMLStreamReader(StringReader(content))
+        val reader = factory.createXMLStreamReader(ByteArrayInputStream(bytes))
 
         var currentDeviceSystemName: String? = null
         var currentDeviceName: String? = null

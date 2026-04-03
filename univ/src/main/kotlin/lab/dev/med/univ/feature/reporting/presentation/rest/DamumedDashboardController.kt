@@ -7,6 +7,7 @@ import lab.dev.med.univ.feature.reporting.domain.errors.DamumedApiIntegrationNot
 import lab.dev.med.univ.feature.reporting.domain.errors.DamumedReportSourceModeMismatchException
 import lab.dev.med.univ.feature.reporting.domain.errors.DamumedReportValidationException
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalDailyStat
+import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalDashboardPeriodSummary
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalDashboardSummary
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalStockItem
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalStatusItem
@@ -33,6 +34,61 @@ class DamumedDashboardController(
     private val getOperationalOverviewUseCase: GetDamumedOperationalOverviewUseCase,
     private val userAggregateService: UserAggregateService,
 ) : Controller(logger) {
+
+    /**
+     * Single unified endpoint for the full dashboard — returns ALL periods plus global metrics.
+     * The frontend can pick the right period data without extra requests.
+     * Uses the same in-memory snapshot cache so response is fast (<50ms when cached).
+     */
+    @GetMapping("/full")
+    suspend fun getFull(
+        @RequestParam(required = false, defaultValue = "false") refresh: Boolean,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<Map<String, Any?>> {
+        return try {
+            val overview = getOperationalOverviewUseCase(refresh)
+            val d = overview.dashboard
+            ResponseEntity.ok(mapOf(
+                "generatedAt" to overview.generatedAt,
+                "sourceReportName" to overview.sourceReportName,
+                "uploads" to overview.uploads,
+                "day" to periodPayload(d.day),
+                "week" to periodPayload(d.week),
+                "month" to periodPayload(d.month),
+                "criticalSamples" to d.criticalSamples,
+                "samplesTotal" to d.samplesTotal,
+                "validationQueue" to d.validationQueue,
+                "analyzerLoadPercent" to d.analyzerLoadPercent,
+                "departmentLoads" to d.departmentLoads,
+                "analyzerStatuses" to d.analyzerStatuses,
+                "stockAlerts" to d.stockAlerts,
+                "workplaces" to d.workplaceItems,
+                "dailyStats" to d.month.dailyStats,
+                "reports" to overview.reports,
+                "worklists" to mapOf(
+                    "waitingSheets" to overview.worklists.waitingSheets,
+                    "completedSheets" to overview.worklists.completedSheets,
+                    "activeSheets" to overview.worklists.activeSheets,
+                ),
+            ))
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    private fun periodPayload(p: DamumedOperationalDashboardPeriodSummary) = mapOf(
+        "label" to p.label,
+        "researchCount" to p.researchCount,
+        "patientCount" to p.patientCount,
+        "departmentCount" to p.departmentCount,
+        "sentResultsCount" to p.sentResultsCount,
+        "materialsCount" to p.materialsCount,
+        "serviceCostTotal" to p.serviceCostTotal,
+        "tatByService" to p.tatByService,
+        "workplaceItems" to p.workplaceItems,
+        "dailyStats" to p.dailyStats,
+    )
 
     @GetMapping("/kpi")
     suspend fun getKpi(

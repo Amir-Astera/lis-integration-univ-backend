@@ -92,10 +92,17 @@ class DamumedOperationalOverviewQueryServiceImpl(
         val allFacts = relevantNormalizedUploads.flatMap { upload ->
             factRepository.findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(upload.id).toList()
         }
+        val allFactIds = allFacts.map { it.entityId }
+        val dimensionsByFactId = if (allFactIds.isNotEmpty()) {
+            factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(allFactIds).toList()
+                .groupBy { it.factId }
+        } else {
+            emptyMap()
+        }
         val factEnvelopes = allFacts.map { fact ->
             FactEnvelope(
                 fact = fact,
-                dimensions = factDimensionRepository.findAllByFactIdOrderByAxisKeyAsc(fact.entityId).toList(),
+                dimensions = dimensionsByFactId[fact.entityId] ?: emptyList(),
             )
         }
 
@@ -153,7 +160,9 @@ class DamumedOperationalOverviewQueryServiceImpl(
             .map { (kind, items) -> DamumedNamedMetric(kind, items.sumOf { it.normalizedFactCount }.toDouble()) }
             .sortedByDescending { it.value }
 
-        val dailyStats = buildDailyStats(referralJournalFacts)
+        val dailyStats = buildDailyStats(referralJournalFacts).ifEmpty {
+            buildDailyStatsFromWorkplaceFacts(workplaceFacts)
+        }
 
         val overview = DamumedOperationalOverview(
             generatedAt = LocalDateTime.now().toString(),
@@ -484,17 +493,30 @@ class DamumedOperationalOverviewQueryServiceImpl(
         }
         val serviceCostTotal = filteredReferralRows.sumOf { it.serviceCost ?: 0.0 }
         val tatByService = buildTatByServiceRows(filteredReferralRows)
-        // Используем точные данные из processed-view вместо агрегации фактов
         val workplaceItems = buildWorkplaceActivityItemsFromView(workplaceProcessedView)
-        val dailyStats = buildDailyStatsForPeriod(filteredReferralRows)
+        val dailyStats = buildDailyStatsForPeriod(filteredReferralRows).ifEmpty {
+            buildDailyStatsFromWorkplaceFacts(filteredWorkplaceFacts)
+        }
+
+        val workplaceResearchCount = if (uniqueResearchKeys.isEmpty()) {
+            filteredWorkplaceFacts
+                .filter { it.fact.metricKey == "completed_count" && (it.fact.numericValue ?: 0.0) > 0 }
+                .sumOf { it.fact.numericValue?.toInt() ?: 0 }
+        } else 0
+        val workplaceServiceCount = if (uniqueResearchKeys.isEmpty()) {
+            filteredWorkplaceFacts
+                .filter { it.fact.metricKey == "completed_count" }
+                .mapNotNull { e -> e.dimensions.firstOrNull { it.axisKey == "service" }?.rawValue?.trim() }
+                .toSet().size
+        } else 0
 
         return DamumedOperationalDashboardPeriodSummary(
             label = label,
-            researchCount = uniqueResearchKeys.size,
+            researchCount = uniqueResearchKeys.size.takeIf { it > 0 } ?: workplaceResearchCount,
             patientCount = uniquePatients.size,
-            departmentCount = uniqueDepartments.size,
-            sentResultsCount = sentResultsCount,
-            materialsCount = materialsCount,
+            departmentCount = uniqueDepartments.size.takeIf { it > 0 } ?: workplaceItems.size,
+            sentResultsCount = sentResultsCount.takeIf { it > 0 } ?: workplaceResearchCount,
+            materialsCount = materialsCount.takeIf { it > 0 } ?: workplaceServiceCount,
             serviceCostTotal = serviceCostTotal,
             tatByService = tatByService,
             workplaceItems = workplaceItems,
@@ -541,6 +563,19 @@ class DamumedOperationalOverviewQueryServiceImpl(
                     numericValue = it.amount,
                 )
             }
+    }
+
+    private fun buildDailyStatsFromWorkplaceFacts(facts: List<FactEnvelope>): List<DamumedOperationalDailyStat> {
+        if (facts.isEmpty()) return emptyList()
+        val periodDims = facts.flatMap { it.dimensions }
+            .filter { it.axisKey == "period" }
+            .map { it.rawValue.trim() }
+            .distinct()
+        val serviceFacts = facts.filter { it.fact.metricKey == "completed_count" && (it.fact.numericValue ?: 0.0) > 0 }
+        if (serviceFacts.isEmpty()) return emptyList()
+        val totalCount = serviceFacts.sumOf { it.fact.numericValue?.toInt() ?: 0 }
+        val dateLabel = periodDims.firstOrNull() ?: LocalDate.now().toString()
+        return listOf(DamumedOperationalDailyStat(date = dateLabel, count = totalCount))
     }
 
     private fun buildDailyStats(facts: List<FactEnvelope>): List<DamumedOperationalDailyStat> {

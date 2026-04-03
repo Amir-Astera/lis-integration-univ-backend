@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service
 import project.gigienist_reports.feature.authorization.presentation.dto.AuthResponseDto
 
 @Service
-@Profile("dev | local")
+@Profile("!firebase")
 class LocalFirebaseAuthService(
     private val localSessionAuthenticationService: LocalSessionAuthenticationService,
 ) : FirebaseAuthService {

@@ -66,8 +66,7 @@ class ReagentReportController(
                 ).toResponseDto(),
             )
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
