@@ -26,7 +26,7 @@ interface LocalSessionAuthenticationService {
 }
 
 @Service
-@Profile("dev | local")
+@Profile("!firebase")
 class LocalSessionAuthenticationServiceImpl(
     private val credentialRepositoryProvider: ObjectProvider<LocalAuthCredentialRepository>,
     private val sessionRepositoryProvider: ObjectProvider<LocalAuthSessionRepository>,
