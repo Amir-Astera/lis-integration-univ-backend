@@ -1,0 +1,64 @@
+services:
+  laboratory_postgres:
+    image: postgres:15-alpine
+    container_name: laboratory_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - laboratory_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - laboratory_net
+
+  laboratory_backend:
+    build:
+      context: ./univ
+      dockerfile: Dockerfile
+    container_name: laboratory_backend
+    restart: unless-stopped
+    depends_on:
+      laboratory_postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_R2DBC_URL: r2dbc:postgresql://laboratory_postgres:5432/${POSTGRES_DB}
+      SPRING_R2DBC_USERNAME: ${POSTGRES_USER}
+      SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_FLYWAY_URL: jdbc:postgresql://laboratory_postgres:5432/${POSTGRES_DB}
+      SPRING_FLYWAY_USER: ${POSTGRES_USER}
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      SERVER_PORT: 8080
+      SECURITY_FIREBASE_PROPS_API_KEY: ${SECURITY_FIREBASE_PROPS_API_KEY}
+      SECURITY_FIREBASE_PROPS_GOOGLE_CREDENTIALS: ${SECURITY_FIREBASE_PROPS_GOOGLE_CREDENTIALS}
+      DEV_AUTH_BOOTSTRAP_ENABLED: ${DEV_AUTH_BOOTSTRAP_ENABLED}
+      DEV_AUTH_BOOTSTRAP_ADMIN_EMAIL: ${DEV_AUTH_BOOTSTRAP_ADMIN_EMAIL}
+      DEV_AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${DEV_AUTH_BOOTSTRAP_ADMIN_PASSWORD}
+      DEV_AUTH_BOOTSTRAP_ADMIN_NAME: ${DEV_AUTH_BOOTSTRAP_ADMIN_NAME}
+      DEV_AUTH_BOOTSTRAP_ADMIN_PHONE: ${DEV_AUTH_BOOTSTRAP_ADMIN_PHONE}
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - laboratory_storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - laboratory_net
+
+volumes:
+  laboratory_postgres_data:
+  laboratory_storage:
+
+networks:
+  laboratory_net:
+    name: laboratory_net
