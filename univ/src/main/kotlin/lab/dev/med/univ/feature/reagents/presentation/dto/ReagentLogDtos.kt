@@ -3,6 +3,7 @@ package lab.dev.med.univ.feature.reagents.presentation.dto
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogUpload
 import lab.dev.med.univ.feature.reagents.domain.models.ParsedAnalyzerSample
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
+import lab.dev.med.univ.feature.reagents.domain.usecases.BatchAnalyzerLogResult
 import java.time.LocalDateTime
 
 data class AnalyzerLogUploadResponseDto(
@@ -99,4 +100,20 @@ fun ParsedAnalyzerSample.toResponseDto() = ParsedAnalyzerSampleResponseDto(
     pltValue = pltValue,
     classification = classification,
     classificationReason = classificationReason,
+)
+
+data class BatchAnalyzerLogResultDto(
+    val uploadId: String,
+    val originalFileName: String,
+    val success: Boolean,
+    val errorMessage: String? = null,
+    val upload: AnalyzerLogUploadResponseDto? = null,
+)
+
+fun BatchAnalyzerLogResult.toDto() = BatchAnalyzerLogResultDto(
+    uploadId = uploadId,
+    originalFileName = originalFileName,
+    success = success,
+    errorMessage = errorMessage,
+    upload = upload?.toResponseDto(),
 )

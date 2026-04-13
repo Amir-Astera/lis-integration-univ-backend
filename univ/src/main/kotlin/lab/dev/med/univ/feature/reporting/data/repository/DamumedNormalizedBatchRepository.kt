@@ -194,6 +194,19 @@ class DamumedNormalizedBatchRepository(
         return totalInserted
     }
 
+    /**
+     * Delete all fact-dimension links for an upload in a single query.
+     * fact_id format: "<uploadId>:fact:<seq>", so we match by prefix.
+     */
+    suspend fun deleteFactDimensionsByUploadId(uploadId: String): Int {
+        val safeUploadId = uploadId.replace("'", "''")
+        val sql = "DELETE FROM damumed_report_normalized_fact_dimensions WHERE fact_id LIKE '$safeUploadId:fact:%'"
+        return databaseClient.sql(sql)
+            .fetch()
+            .rowsUpdated()
+            .awaitFirstOrNull()?.toInt() ?: 0
+    }
+
     private fun escapeSql(value: String?): String {
         return value?.replace("'", "''")?.replace("\\", "\\\\") ?: ""
     }

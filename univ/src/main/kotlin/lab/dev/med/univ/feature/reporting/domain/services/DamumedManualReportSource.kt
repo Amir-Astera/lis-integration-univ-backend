@@ -37,7 +37,9 @@ internal class DamumedManualReportSourceImpl(
     private val repository: DamumedReportUploadRepository,
     private val excelLimiter: ExcelLimiter,
     private val workbookRawParsingService: DamumedWorkbookRawParsingService,
+    private val csvParsingService: DamumedCsvParsingService,
 ) : DamumedManualReportSource {
+
     override suspend fun upload(
         reportKind: DamumedLabReportKind,
         part: FilePart,
@@ -48,6 +50,67 @@ internal class DamumedManualReportSourceImpl(
             throw DamumedReportValidationException("Uploaded report file is empty.")
         }
 
+        val isCsv = part.filename().lowercase().endsWith(".csv")
+
+        if (isCsv) {
+            return uploadCsv(reportKind, part, bytes, uploadedBy)
+        }
+        return uploadWorkbook(reportKind, part, bytes, uploadedBy)
+    }
+
+    private suspend fun uploadCsv(
+        reportKind: DamumedLabReportKind,
+        part: FilePart,
+        bytes: ByteArray,
+        uploadedBy: String?,
+    ): DamumedReportUpload {
+        if (!csvParsingService.supportsKind(reportKind)) {
+            throw DamumedReportValidationException(
+                "CSV upload is not supported for report kind '${reportKind.displayName}'. Please upload an XLS or XLSX file."
+            )
+        }
+
+        val originalBaseName = FileNameUtil.sanitizeForFilename(
+            part.filename().substringBeforeLast('.').ifBlank { reportKind.storageDirectory },
+        )
+        val targetDirectory = storageDirectory(reportKind)
+        val uniqueTargetPath = withContext(Dispatchers.IO) {
+            Files.createDirectories(targetDirectory)
+            FileNameUtil.uniquePath(targetDirectory, "${FileNameUtil.timestamp()} - $originalBaseName.csv")
+        }
+
+        withContext(Dispatchers.IO) {
+            Files.write(uniqueTargetPath, bytes)
+        }
+
+        val upload = DamumedReportUpload(
+            id = UUID.randomUUID().toString(),
+            reportKind = reportKind,
+            sourceMode = DamumedReportSourceMode.MANUAL,
+            originalFileName = part.filename(),
+            storedFileName = uniqueTargetPath.fileName.toString(),
+            storagePath = location.relativize(uniqueTargetPath).toString().replace('\\', '/'),
+            format = "csv",
+            contentType = part.headers().contentType?.toString(),
+            checksumSha256 = sha256(bytes),
+            sizeBytes = bytes.size.toLong(),
+            uploadedAt = LocalDateTime.now(),
+            uploadedBy = uploadedBy,
+        )
+
+        val persistedUpload = repository.save(upload.toEntity()).let {
+            upload.copy(version = it.version)
+        }
+
+        return csvParsingService.parseAndPersist(persistedUpload, bytes)
+    }
+
+    private suspend fun uploadWorkbook(
+        reportKind: DamumedLabReportKind,
+        part: FilePart,
+        bytes: ByteArray,
+        uploadedBy: String?,
+    ): DamumedReportUpload {
         val workbookPath = excelLimiter.withPermit {
             withContext(Dispatchers.IO) {
                 try {

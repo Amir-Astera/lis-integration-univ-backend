@@ -34,6 +34,7 @@ dependencies {
 	implementation("org.bouncycastle:bcprov-jdk15on:1.70")
 	implementation("org.apache.poi:poi:5.2.5")        // HSSF (.xls)
 	implementation("org.apache.poi:poi-ooxml:5.2.5")  // XSSF (.xlsx)
+	implementation("org.apache.commons:commons-csv:1.10.0")
 	implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")

@@ -3,16 +3,20 @@ package lab.dev.med.univ.feature.reagents.presentation.rest
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitFirst
+import kotlinx.coroutines.reactive.awaitSingle
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogParseUnsupportedException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogUploadNotFoundException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogValidationException
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogSourceType
+import lab.dev.med.univ.feature.reagents.domain.usecases.BatchUploadAnalyzerLogsUseCase
 import lab.dev.med.univ.feature.reagents.domain.usecases.GetAnalyzerLogUploadsUseCase
 import lab.dev.med.univ.feature.reagents.domain.usecases.GetParsedAnalyzerSamplesUseCase
 import lab.dev.med.univ.feature.reagents.domain.usecases.ParseAnalyzerLogUploadUseCase
 import lab.dev.med.univ.feature.reagents.domain.usecases.UploadAnalyzerLogUseCase
 import lab.dev.med.univ.feature.reagents.presentation.dto.AnalyzerLogUploadResponseDto
+import lab.dev.med.univ.feature.reagents.presentation.dto.BatchAnalyzerLogResultDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ParsedAnalyzerSampleResponseDto
+import lab.dev.med.univ.feature.reagents.presentation.dto.toDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.toResponseDto
 import org.slf4j.Logger
 import org.springframework.http.HttpStatus
@@ -27,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import reactor.core.publisher.Flux
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 import project.gigienist_reports.core.config.api.Controller
@@ -41,6 +46,7 @@ import project.gigienist_reports.feature.users.domain.services.UserAggregateServ
 class AnalyzerLogController(
     logger: Logger,
     private val uploadAnalyzerLogUseCase: UploadAnalyzerLogUseCase,
+    private val batchUploadAnalyzerLogsUseCase: BatchUploadAnalyzerLogsUseCase,
     private val parseAnalyzerLogUploadUseCase: ParseAnalyzerLogUploadUseCase,
     private val getAnalyzerLogUploadsUseCase: GetAnalyzerLogUploadsUseCase,
     private val getParsedAnalyzerSamplesUseCase: GetParsedAnalyzerSamplesUseCase,
@@ -99,6 +105,37 @@ class AnalyzerLogController(
             ResponseEntity.status(HttpStatus.CREATED)
                 .header("Location", "${request.uri}/${upload.id}")
                 .body(upload)
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    @PostMapping(
+        "/manual/{sourceType}/batch",
+        consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
+    )
+    suspend fun uploadManualBatch(
+        @PathVariable sourceType: AnalyzerLogSourceType,
+        @RequestPart("files") files: Flux<FilePart>,
+        @RequestParam(required = false) analyzerId: String?,
+        @RequestParam(required = false, defaultValue = "true") autoParse: Boolean,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<List<BatchAnalyzerLogResultDto>> {
+        return try {
+            ensureAdmin(exchange)
+            val parts = files.collectList().awaitSingle()
+            if (parts.isEmpty()) {
+                return ResponseEntity.badRequest().build()
+            }
+            val results = batchUploadAnalyzerLogsUseCase(
+                sourceType = sourceType,
+                analyzerId = analyzerId,
+                parts = parts,
+                uploadedBy = getSessionUser(exchange).login,
+                autoParse = autoParse,
+            ).map { it.toDto() }
+            ResponseEntity.status(HttpStatus.MULTI_STATUS).body(results)
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
             throw ResponseStatusException(code, message, ex)

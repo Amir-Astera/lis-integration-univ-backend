@@ -13,7 +13,6 @@ import lab.dev.med.univ.feature.reporting.data.repository.DamumedParsedRowReposi
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedParsedSheetRepository
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedParsedWorkbookRepository
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedReportUploadRepository
-import lab.dev.med.univ.feature.reporting.domain.models.DamumedLabReportKind
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportParseStatus
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportUpload
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
@@ -41,8 +40,6 @@ class DamumedWorkbookRawParsingServiceImpl(
     private val rowRepository: DamumedParsedRowRepository,
     private val cellRepository: DamumedParsedCellRepository,
     private val mergedRegionRepository: DamumedParsedMergedRegionRepository,
-    private val workplaceCompletedStudiesProcessingService: DamumedWorkplaceCompletedStudiesProcessingService,
-    private val workbookNormalizationService: DamumedWorkbookNormalizationService,
 ) : DamumedWorkbookRawParsingService {
     private val dataFormatter = DataFormatter(true)
 
@@ -156,7 +153,7 @@ class DamumedWorkbookRawParsingServiceImpl(
                 }
             }
 
-            val parsedUpload = started.copy(
+            started.copy(
                 parseStatus = DamumedReportParseStatus.PARSED,
                 parseCompletedAt = LocalDateTime.now(),
                 parsedSheetCount = parsedSheetCount,
@@ -166,13 +163,6 @@ class DamumedWorkbookRawParsingServiceImpl(
                 detectedReportTitle = detectTitle(titleCandidates),
                 detectedPeriodText = periodCandidates.firstOrNull(),
             ).persistUpload()
-            when (parsedUpload.reportKind) {
-                DamumedLabReportKind.WORKPLACE_COMPLETED_STUDIES -> {
-                    workplaceCompletedStudiesProcessingService.processParsedUpload(parsedUpload, workbook)
-                }
-
-                else -> workbookNormalizationService.normalize(parsedUpload)
-            }
         } catch (ex: Exception) {
             cleanupExistingParsedData(upload.id)
             started.copy(

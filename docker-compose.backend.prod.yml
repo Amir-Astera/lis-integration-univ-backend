@@ -15,7 +15,9 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - laboratory_net
+      laboratory_net:
+        aliases:
+          - laboratory-postgres
 
   laboratory_backend:
     build:
@@ -28,10 +30,10 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_R2DBC_URL: r2dbc:postgresql://laboratory_postgres:5432/${POSTGRES_DB}
+      SPRING_R2DBC_URL: r2dbc:postgresql://laboratory-postgres:5432/${POSTGRES_DB}
       SPRING_R2DBC_USERNAME: ${POSTGRES_USER}
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_FLYWAY_URL: jdbc:postgresql://laboratory_postgres:5432/${POSTGRES_DB}
+      SPRING_FLYWAY_URL: jdbc:postgresql://laboratory-postgres:5432/${POSTGRES_DB}
       SPRING_FLYWAY_USER: ${POSTGRES_USER}
       SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
       SERVER_PORT: 8080
