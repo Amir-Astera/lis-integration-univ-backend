@@ -705,7 +705,8 @@ class DamumedWorkplaceCompletedStudiesProcessingServiceImpl(
     }
 
     private fun resolveWorkbookPath(upload: DamumedReportUpload): Path {
-        return location.resolve(upload.storagePath.replace('/', '\\')).toAbsolutePath().normalize()
+        // storagePath is persisted with '/' (see DamumedManualReportSource). Do not convert to '\' — that breaks Linux/Docker.
+        return location.resolve(upload.storagePath).toAbsolutePath().normalize()
     }
 
     private fun isDepartmentGroupHeaderText(text: String): Boolean {
