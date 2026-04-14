@@ -3,6 +3,7 @@ package lab.dev.med.univ.feature.reagents.presentation.rest
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitFirst
+import kotlinx.coroutines.reactor.awaitSingle
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogParseUnsupportedException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogUploadNotFoundException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogValidationException
@@ -111,15 +112,16 @@ class AnalyzerLogController(
         consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
     )
     suspend fun uploadManualBatch(
+        exchange: ServerWebExchange,
         @PathVariable sourceType: AnalyzerLogSourceType,
-        @RequestPart("files") files: List<FilePart>,
         @RequestParam(required = false) analyzerId: String?,
         @RequestParam(required = false, defaultValue = "true") autoParse: Boolean,
-        exchange: ServerWebExchange,
     ): ResponseEntity<List<BatchAnalyzerLogResultDto>> {
         return try {
             ensureAdmin(exchange)
-            if (files.isEmpty()) {
+            val multipart = exchange.multipartData().awaitSingle()
+            val fileParts = multipart.get("files").orEmpty().filterIsInstance<FilePart>()
+            if (fileParts.isEmpty()) {
                 throw AnalyzerLogValidationException(
                     "Не переданы файлы. Добавьте в multipart одну или несколько частей с именем поля \"files\".",
                 )
@@ -127,7 +129,7 @@ class AnalyzerLogController(
             val results = batchUploadAnalyzerLogsUseCase(
                 sourceType = sourceType,
                 analyzerId = analyzerId,
-                parts = files,
+                parts = fileParts,
                 uploadedBy = getSessionUser(exchange).login,
                 autoParse = autoParse,
             ).map { it.toDto() }
