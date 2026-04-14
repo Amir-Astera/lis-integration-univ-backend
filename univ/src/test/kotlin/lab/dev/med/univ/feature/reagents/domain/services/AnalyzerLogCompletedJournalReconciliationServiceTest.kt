@@ -62,7 +62,7 @@ class AnalyzerLogCompletedJournalReconciliationServiceTest {
     }
 
     @Test
-    fun `referral and log service hint must align when both present`() = runBlocking {
+    fun `referral in journal suffices even if log service hint does not match journal lines`() = runBlocking {
         val index = CompletedLabStudiesJournalReconciliationIndex(
             mapOf(
                 "22244695" to setOf(
@@ -72,11 +72,18 @@ class AnalyzerLogCompletedJournalReconciliationServiceTest {
             ),
         )
         val service = AnalyzerLogCompletedJournalReconciliationServiceImpl(loaderWith(index))
-        val ok = service.reconcileApplogsSamples(listOf(suspicious(serviceName = "B04.149.002")))
-        assertEquals(SampleClassification.LEGITIMATE, ok.single().classification)
+        val withWrongService = service.reconcileApplogsSamples(listOf(suspicious(serviceName = "B04.999.999")))
+        assertEquals(SampleClassification.LEGITIMATE, withWrongService.single().classification)
+    }
 
-        val bad = service.reconcileApplogsSamples(listOf(suspicious(serviceName = "B04.999.999")))
-        assertEquals(SampleClassification.SUSPICIOUS, bad.single().classification)
+    @Test
+    fun `unknown barcode stays suspicious`() = runBlocking {
+        val index = CompletedLabStudiesJournalReconciliationIndex(
+            mapOf("22244695" to setOf(ns("B04.149.002"))),
+        )
+        val service = AnalyzerLogCompletedJournalReconciliationServiceImpl(loaderWith(index))
+        val out = service.reconcileApplogsSamples(listOf(suspicious(barcode = "99999999")))
+        assertEquals(SampleClassification.SUSPICIOUS, out.single().classification)
     }
 
     @Test

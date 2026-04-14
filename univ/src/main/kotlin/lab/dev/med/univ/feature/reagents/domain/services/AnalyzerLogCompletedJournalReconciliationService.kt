@@ -13,12 +13,10 @@ import org.springframework.stereotype.Service
  *
  * Rules:
  * - Only [SampleClassification.SUSPICIOUS] samples are changed.
- * - Referral keys: normalized barcode, [ParsedAnalyzerSample.orderResearchId], [ParsedAnalyzerSample.orderId].
- * - If the journal has **no** non-blank service names for that referral → referral match is sufficient.
- * - If the journal has named services and the log has **no** [ParsedAnalyzerSample.serviceName] → referral match is sufficient
- *   (SR / metadata gap on the instrument side).
- * - If both journal and log carry a service hint → [CompletedLabJournalServiceLineMatching.likelySame] must succeed
- *   for at least one journal line (substring, shared service code, or token overlap).
+ * - A sample is upgraded if **any** normalized key matches a journal referral: barcode,
+ *   [ParsedAnalyzerSample.orderResearchId], or [ParsedAnalyzerSample.orderId].
+ * - Service lines from the journal are **not** used to reject a match: if the referral/штрих-код is in the journal,
+ *   the sample is treated as legitimate (same direction as «THERE IS NO SR» false positives when LIS row exists).
  */
 interface AnalyzerLogCompletedJournalReconciliationService {
     suspend fun reconcileApplogsSamples(samples: List<ParsedAnalyzerSample>): List<ParsedAnalyzerSample>
@@ -65,33 +63,11 @@ internal class AnalyzerLogCompletedJournalReconciliationServiceImpl(
         }
 
         val referralCandidates = referralKeyCandidates(sample)
-        val matchedReferral = referralCandidates.firstOrNull { it in index.referralKeys } ?: return sample
-
-        val namedJournalServices = index.namedServicesForReferral(matchedReferral)
-        val logServiceHint = sample.serviceName?.let(JournalAxisTextNormalization::normalizeLogServiceHint).orEmpty()
-
-        val serviceOk = when {
-            namedJournalServices.isEmpty() -> true
-            logServiceHint.isBlank() -> true
-            else ->
-                namedJournalServices.any { journalLine ->
-                    journalLine.isNotBlank() &&
-                        CompletedLabJournalServiceLineMatching.likelySame(journalLine, logServiceHint)
-                }
-        }
-
-        if (!serviceOk) {
-            return sample
-        }
+        referralCandidates.firstOrNull { it in index.referralKeys } ?: return sample
 
         val previousReason = sample.classificationReason.orEmpty().trim()
         val suffix = if (previousReason.isNotEmpty()) " ($previousReason)" else ""
-        val reason = when {
-            logServiceHint.isNotBlank() && namedJournalServices.any { it.isNotBlank() } ->
-                "Подтверждено журналом выполненных исследований (направление и услуга)$suffix"
-            else ->
-                "Подтверждено журналом выполненных исследований (направление)$suffix"
-        }
+        val reason = "Подтверждено журналом выполненных исследований (№ направления / штрих-код)$suffix"
 
         return sample.copy(
             classification = SampleClassification.LEGITIMATE,
