@@ -3,7 +3,6 @@ package lab.dev.med.univ.feature.reagents.presentation.rest
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitFirst
-import kotlinx.coroutines.reactive.awaitSingle
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogParseUnsupportedException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogUploadNotFoundException
 import lab.dev.med.univ.feature.reagents.domain.errors.AnalyzerLogValidationException
@@ -31,7 +30,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
-import reactor.core.publisher.Flux
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.server.ServerWebExchange
 import project.gigienist_reports.core.config.api.Controller
@@ -62,8 +60,7 @@ class AnalyzerLogController(
             ensureAdmin(exchange)
             ResponseEntity.ok(getAnalyzerLogUploadsUseCase(analyzerId).map { it.toResponseDto() })
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
@@ -76,8 +73,7 @@ class AnalyzerLogController(
             ensureAdmin(exchange)
             ResponseEntity.ok(getParsedAnalyzerSamplesUseCase(uploadId).map { it.toResponseDto() })
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
@@ -106,8 +102,7 @@ class AnalyzerLogController(
                 .header("Location", "${request.uri}/${upload.id}")
                 .body(upload)
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
@@ -117,28 +112,28 @@ class AnalyzerLogController(
     )
     suspend fun uploadManualBatch(
         @PathVariable sourceType: AnalyzerLogSourceType,
-        @RequestPart("files") files: Flux<FilePart>,
+        @RequestPart("files") files: List<FilePart>,
         @RequestParam(required = false) analyzerId: String?,
         @RequestParam(required = false, defaultValue = "true") autoParse: Boolean,
         exchange: ServerWebExchange,
     ): ResponseEntity<List<BatchAnalyzerLogResultDto>> {
         return try {
             ensureAdmin(exchange)
-            val parts = files.collectList().awaitSingle()
-            if (parts.isEmpty()) {
-                return ResponseEntity.badRequest().build()
+            if (files.isEmpty()) {
+                throw AnalyzerLogValidationException(
+                    "Не переданы файлы. Добавьте в multipart одну или несколько частей с именем поля \"files\".",
+                )
             }
             val results = batchUploadAnalyzerLogsUseCase(
                 sourceType = sourceType,
                 analyzerId = analyzerId,
-                parts = parts,
+                parts = files,
                 uploadedBy = getSessionUser(exchange).login,
                 autoParse = autoParse,
             ).map { it.toDto() }
             ResponseEntity.status(HttpStatus.MULTI_STATUS).body(results)
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
@@ -151,8 +146,7 @@ class AnalyzerLogController(
             ensureAdmin(exchange)
             ResponseEntity.ok(parseAnalyzerLogUploadUseCase(uploadId).toResponseDto())
         } catch (ex: Exception) {
-            val (code, message) = getError(ex)
-            throw ResponseStatusException(code, message, ex)
+            throw mapException(ex)
         }
     }
 
