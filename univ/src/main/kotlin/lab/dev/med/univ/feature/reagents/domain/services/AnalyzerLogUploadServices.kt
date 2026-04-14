@@ -82,6 +82,7 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
     private val applogsParserService: ApplogsParserService,
     private val errorsXmlParserService: ErrorsXmlParserService,
     private val logAnomalyAnalysisService: LogAnomalyAnalysisService,
+    private val completedJournalReconciliationService: AnalyzerLogCompletedJournalReconciliationService,
 ) : AnalyzerLogUploadIngestionService {
 
     override suspend fun upload(
@@ -188,8 +189,10 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         val content = readStoredContent(processing.storagePath)
         val parsed = applogsParserService.parse(processing.id, processing.analyzerId, content)
 
+        val reconciledSamples = completedJournalReconciliationService.reconcileApplogsSamples(parsed.samples)
+
         parsedAnalyzerSampleRepository.deleteAllByLogUploadId(processing.id)
-        parsedAnalyzerSampleRepository.saveAll(parsed.samples.map { it.toEntity() }).toList()
+        parsedAnalyzerSampleRepository.saveAll(reconciledSamples.map { it.toEntity() }).toList()
 
         // Re-read fresh entity from DB to avoid optimistic locking conflict
         // (version may have changed if another thread touched the record)
@@ -199,11 +202,11 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
             parseCompletedAt = LocalDateTime.now(),
             parseErrorMessage = null,
             totalLinesParsed = parsed.totalLinesParsed,
-            totalSamplesFound = parsed.samples.size,
-            legitimateSamples = parsed.samples.count { it.classification == SampleClassification.LEGITIMATE },
-            unauthorizedSamples = parsed.samples.count { it.classification == SampleClassification.SUSPICIOUS },
-            washTestSamples = parsed.samples.count { it.classification == SampleClassification.WASH_TEST },
-            rerunSamples = parsed.samples.count { it.classification == SampleClassification.PROBABLE_RERUN },
+            totalSamplesFound = reconciledSamples.size,
+            legitimateSamples = reconciledSamples.count { it.classification == SampleClassification.LEGITIMATE },
+            unauthorizedSamples = reconciledSamples.count { it.classification == SampleClassification.SUSPICIOUS },
+            washTestSamples = reconciledSamples.count { it.classification == SampleClassification.WASH_TEST },
+            rerunSamples = reconciledSamples.count { it.classification == SampleClassification.PROBABLE_RERUN },
             logPeriodStart = parsed.logPeriodStart,
             logPeriodEnd = parsed.logPeriodEnd,
         )
