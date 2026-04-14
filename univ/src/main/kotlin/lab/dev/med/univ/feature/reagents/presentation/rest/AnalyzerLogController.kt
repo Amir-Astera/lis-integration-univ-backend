@@ -119,7 +119,7 @@ class AnalyzerLogController(
     ): ResponseEntity<List<BatchAnalyzerLogResultDto>> {
         return try {
             ensureAdmin(exchange)
-            val multipart = exchange.multipartData().awaitSingle()
+            val multipart = exchange.multipartData.awaitSingle()
             val fileParts = multipart.get("files").orEmpty().filterIsInstance<FilePart>()
             if (fileParts.isEmpty()) {
                 throw AnalyzerLogValidationException(
