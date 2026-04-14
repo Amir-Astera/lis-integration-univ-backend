@@ -25,7 +25,10 @@ class NormalizeDamumedReportUploadUseCaseImpl(
             ?.toModel()
             ?: throw DamumedReportValidationException("Report upload not found.")
         if (upload.parseStatus != DamumedReportParseStatus.PARSED) {
-            throw DamumedReportValidationException("Report upload must be parsed before normalization can run.")
+            val parseHint = upload.parseErrorMessage?.trim()?.take(400)?.let { " Детали разбора: $it" }.orEmpty()
+            throw DamumedReportValidationException(
+                "Сначала должен успешно завершиться разбор файла (сейчас parseStatus=${upload.parseStatus}).$parseHint",
+            )
         }
         return when (upload.reportKind) {
             DamumedLabReportKind.WORKPLACE_COMPLETED_STUDIES -> {

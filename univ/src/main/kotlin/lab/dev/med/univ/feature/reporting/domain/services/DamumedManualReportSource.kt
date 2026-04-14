@@ -9,6 +9,7 @@ import lab.dev.med.univ.feature.reporting.domain.errors.DamumedReportValidationE
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedLabReportKind
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportSourceMode
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportUpload
+import lab.dev.med.univ.feature.reporting.domain.usecases.NormalizeDamumedReportUploadUseCase
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.codec.multipart.FilePart
@@ -38,6 +39,7 @@ internal class DamumedManualReportSourceImpl(
     private val excelLimiter: ExcelLimiter,
     private val workbookRawParsingService: DamumedWorkbookRawParsingService,
     private val csvParsingService: DamumedCsvParsingService,
+    private val normalizeDamumedReportUploadUseCase: NormalizeDamumedReportUploadUseCase,
 ) : DamumedManualReportSource {
 
     override suspend fun upload(
@@ -161,13 +163,16 @@ internal class DamumedManualReportSourceImpl(
 
         return excelLimiter.withPermit {
             withContext(Dispatchers.IO) {
-                try {
+                val parsed = try {
                     WorkbookFactory.create(ByteArrayInputStream(bytes)).use { workbook ->
                         workbookRawParsingService.parseAndPersist(persistedUpload, workbook)
                     }
                 } catch (ex: Exception) {
                     throw DamumedReportValidationException("Uploaded workbook could not be parsed and persisted.")
                 }
+                // CSV path runs normalization inside parseAndPersist; Excel only persisted raw cells until now.
+                // Without this step uploads stay PENDING and dashboards (workplace, etc.) stay empty.
+                normalizeDamumedReportUploadUseCase(parsed.id)
             }
         }
     }
