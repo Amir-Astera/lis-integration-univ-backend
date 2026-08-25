@@ -9,6 +9,7 @@ import lab.dev.med.univ.feature.reagents.data.entity.ParsedAnalyzerSampleEntity
 import lab.dev.med.univ.feature.reagents.data.entity.ReagentConsumptionReportEntity
 import lab.dev.med.univ.feature.reagents.data.entity.ReagentInventoryEntity
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogParseStatus
+import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogSourceType
 import lab.dev.med.univ.feature.reagents.domain.models.ReagentInventoryStatus
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
@@ -43,6 +44,18 @@ interface AnalyzerLogUploadRepository : CoroutineCrudRepository<AnalyzerLogUploa
     fun findAllByOrderByUploadedAtDesc(): Flow<AnalyzerLogUploadEntity>
     fun findAllByAnalyzerIdOrderByUploadedAtDesc(analyzerId: String): Flow<AnalyzerLogUploadEntity>
     fun findAllByParseStatusOrderByUploadedAtDesc(parseStatus: AnalyzerLogParseStatus): Flow<AnalyzerLogUploadEntity>
+    /** Used for idempotent agent uploads: same file content for the same analyzer is never processed twice. */
+    suspend fun findByAnalyzerIdAndChecksumSha256(analyzerId: String, checksumSha256: String): AnalyzerLogUploadEntity?
+
+    /**
+     * Latest upload for a given analyzer + source type. Used by errors.xml ingestion to
+     * supersede the previous version of the file (its content is a snapshot, not append-only —
+     * keeping prior uploads would create cross-upload duplicates).
+     */
+    suspend fun findFirstByAnalyzerIdAndSourceTypeOrderByUploadedAtDesc(
+        analyzerId: String,
+        sourceType: AnalyzerLogSourceType,
+    ): AnalyzerLogUploadEntity?
 }
 
 interface ParsedAnalyzerSampleRepository : CoroutineCrudRepository<ParsedAnalyzerSampleEntity, String> {

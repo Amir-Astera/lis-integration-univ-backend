@@ -18,11 +18,15 @@ import org.springframework.security.web.server.authentication.AuthenticationWebF
 import org.springframework.security.web.server.context.WebSessionServerSecurityContextRepository
 import org.springframework.web.cors.reactive.CorsConfigurationSource
 import org.springframework.web.reactive.config.WebFluxConfigurer
+import lab.dev.med.univ.feature.agent.domain.AgentSecurityFilter
 import project.gigienist_reports.core.security.TokenAuthenticationConverter
 import project.gigienist_reports.core.security.firebase.FirebaseHeadersExchangeMatcher
 
 // Firebase Auth removed. All profiles now use LocalSessionAuthenticationService.
 // To enable Firebase: activate the "firebase" Spring profile.
+//
+// /api/agent/** is protected by AgentSecurityFilter (X-Agent-Key header) and
+// must be excluded from the Firebase/session filter chain.
 
 @Configuration
 @EnableWebFluxSecurity
@@ -36,6 +40,7 @@ class SecurityConfig(
         http: ServerHttpSecurity,
         entryPoint: UnauthorizedAuthenticationEntryPoint,
         authWebFilter: AuthenticationWebFilter,
+        agentSecurityFilter: AgentSecurityFilter,
         corsSource: CorsConfigurationSource,
     ): SecurityWebFilterChain {
         http.csrf { it.disable() }
@@ -47,9 +52,13 @@ class SecurityConfig(
         http.exceptionHandling { it.authenticationEntryPoint(entryPoint) }
             .authorizeExchange { it.pathMatchers(HttpMethod.OPTIONS).permitAll() }
             .authorizeExchange { it.pathMatchers(*securityProperties.allowedPublicApis.toTypedArray()).permitAll() }
+            // Agent paths are handled exclusively by AgentSecurityFilter — permit at chain level.
+            .authorizeExchange { it.pathMatchers("/api/agent/**").permitAll() }
             .authorizeExchange { it.pathMatchers("/").permitAll() }
             .authorizeExchange { it.matchers(EndpointRequest.toAnyEndpoint()).authenticated() }
             .addFilterAt(authWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
+            // AgentSecurityFilter runs before AUTHORIZATION so it can set the SecurityContext.
+            .addFilterBefore(agentSecurityFilter, SecurityWebFiltersOrder.AUTHENTICATION)
             .authorizeExchange { it.anyExchange().authenticated() }
 
         return http.build()

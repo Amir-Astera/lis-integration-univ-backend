@@ -9,14 +9,19 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 /**
- * Cross-checks suspicious applog samples against the normalized completed lab studies journal.
+ * Cross-checks anomalous applog samples against the normalized completed lab studies journal.
  *
  * Rules:
- * - Only [SampleClassification.SUSPICIOUS] samples are changed.
- * - A sample is upgraded if **any** normalized key matches a journal referral: barcode,
- *   [ParsedAnalyzerSample.orderResearchId], or [ParsedAnalyzerSample.orderId].
- * - Service lines from the journal are **not** used to reject a match: if the referral/штрих-код is in the journal,
- *   the sample is treated as legitimate (same direction as «THERE IS NO SR» false positives when LIS row exists).
+ * - Covers [SampleClassification.SUSPICIOUS], [SampleClassification.ERROR],
+ *   [SampleClassification.XML_RESULT], and [SampleClassification.PROBABLE_RERUN].
+ *   LEGITIMATE and WASH_TEST samples are left unchanged.
+ * - A sample is upgraded to LEGITIMATE if **any** normalized key matches a journal referral:
+ *   barcode, [ParsedAnalyzerSample.orderResearchId], or [ParsedAnalyzerSample.orderId].
+ * - Service lines from the journal are **not** used to reject a match: if the referral/штрих-код
+ *   is present in the journal, the test is considered registered — the analyzer anomaly is a
+ *   false positive (LIS delayed registration is normal, especially for immunology).
+ *
+ * This service is intentionally permissive: it only upgrades, never downgrades.
  */
 interface AnalyzerLogCompletedJournalReconciliationService {
     suspend fun reconcileApplogsSamples(samples: List<ParsedAnalyzerSample>): List<ParsedAnalyzerSample>
@@ -45,11 +50,11 @@ internal class AnalyzerLogCompletedJournalReconciliationServiceImpl(
 
         val reconciled = samples.map { reconcileOne(it, index) }
         val upgraded = samples.indices.count { i ->
-            samples[i].classification == SampleClassification.SUSPICIOUS &&
+            samples[i].classification in RECONCILABLE_CLASSIFICATIONS &&
                 reconciled[i].classification == SampleClassification.LEGITIMATE
         }
         if (upgraded > 0) {
-            log.debug("Reclassified {} applog sample(s) as legitimate via completed lab journal index", upgraded)
+            log.info("Reclassified {} applog sample(s) as LEGITIMATE via completed lab journal index", upgraded)
         }
         return reconciled
     }
@@ -58,21 +63,37 @@ internal class AnalyzerLogCompletedJournalReconciliationServiceImpl(
         sample: ParsedAnalyzerSample,
         index: CompletedLabStudiesJournalReconciliationIndex,
     ): ParsedAnalyzerSample {
-        if (sample.classification != SampleClassification.SUSPICIOUS) {
+        // Only upgrade samples that are in anomalous classifications
+        if (sample.classification !in RECONCILABLE_CLASSIFICATIONS) {
             return sample
         }
 
         val referralCandidates = referralKeyCandidates(sample)
         referralCandidates.firstOrNull { it in index.referralKeys } ?: return sample
 
+        val originalClassification = sample.classification.name
         val previousReason = sample.classificationReason.orEmpty().trim()
-        val suffix = if (previousReason.isNotEmpty()) " ($previousReason)" else ""
+        val suffix = if (previousReason.isNotEmpty()) " [$originalClassification: $previousReason]" else " [$originalClassification]"
         val reason = "Подтверждено журналом выполненных исследований (№ направления / штрих-код)$suffix"
 
         return sample.copy(
             classification = SampleClassification.LEGITIMATE,
             hasLisOrder = true,
             classificationReason = reason,
+        )
+    }
+
+    companion object {
+        /**
+         * Classifications that can be upgraded to LEGITIMATE if a matching referral is found.
+         * LEGITIMATE and WASH_TEST are not touched — the former is already resolved,
+         * the latter is a technical run (wash, blank, QC) that is never billed.
+         */
+        val RECONCILABLE_CLASSIFICATIONS = setOf(
+            SampleClassification.SUSPICIOUS,
+            SampleClassification.ERROR,
+            SampleClassification.XML_RESULT,
+            SampleClassification.PROBABLE_RERUN,
         )
     }
 

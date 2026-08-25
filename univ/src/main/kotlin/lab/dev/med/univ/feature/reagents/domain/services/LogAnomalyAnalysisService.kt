@@ -22,13 +22,7 @@ import lab.dev.med.univ.feature.reagents.domain.models.LogAnalyticsResult
 import lab.dev.med.univ.feature.reagents.domain.models.LogAnomalyDailySummary
 import lab.dev.med.univ.feature.reagents.domain.models.LogAnomalyRecord
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
-import lab.dev.med.univ.feature.reporting.data.entity.DamumedNormalizedFactEntity
-import lab.dev.med.univ.feature.reporting.data.entity.DamumedNormalizedFactDimensionEntity
-import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedFactDimensionRepository
-import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedFactRepository
-import lab.dev.med.univ.feature.reporting.data.repository.DamumedReportUploadRepository
-import lab.dev.med.univ.feature.reporting.domain.models.DamumedLabReportKind
-import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportNormalizationStatus
+import lab.dev.med.univ.feature.reporting.data.repository.CompletedLabStudiesJournalReferralIndexRepository
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -52,9 +46,8 @@ class LogAnomalyAnalysisServiceImpl(
     private val dailySummaryRepository: LogAnomalyDailySummaryRepository,
     private val analyzerRepository: AnalyzerRepository,
     private val normRepository: ServiceReagentConsumptionNormRepository,
-    private val damumedUploadRepository: DamumedReportUploadRepository,
-    private val damumedFactRepository: DamumedNormalizedFactRepository,
-    private val damumedFactDimensionRepository: DamumedNormalizedFactDimensionRepository,
+    private val journalIndexRepository: CompletedLabStudiesJournalReferralIndexRepository,
+    private val serviceMatchingService: ServiceMatchingService,
     private val objectMapper: ObjectMapper,
 ) : LogAnomalyAnalysisService {
 
@@ -460,45 +453,67 @@ class LogAnomalyAnalysisServiceImpl(
         }
         val totalSamples = totalLegitimate + totalAnomalies + totalWashTests
 
-        // ── Damumed LIS report facts ──────────────────────────────────────────────
-        val damumedServiceStats = runCatching {
-            val latestUpload = damumedUploadRepository
-                .findAllByOrderByUploadedAtDesc()
-                .toList()
-                .firstOrNull {
-                    it.reportKind == DamumedLabReportKind.WORKPLACE_COMPLETED_STUDIES &&
-                        it.normalizationStatus == DamumedReportNormalizationStatus.NORMALIZED
-                }
+        // ── Damumed LIS stats — period-synced, from COMPLETED_LAB_STUDIES_JOURNAL ────────────────────
+        // Uses date-filtered query on completed_at dimension to align with the analyzer log period.
+        // Falls back gracefully to empty if no journal data is available yet.
+        val rawLisServiceStats: Map<String, Int> = runCatching {
+            journalIndexRepository.loadServiceStatsByDateRange(periodFrom, periodTo)
+        }.getOrElse { emptyMap() }
 
-            if (latestUpload != null) {
-                val facts = damumedFactRepository
-                    .findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(latestUpload.id)
-                    .toList()
-                val factIds = facts.map { it.entityId }
-                val allDimensions = if (factIds.isNotEmpty()) {
-                    damumedFactDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(factIds).toList()
-                } else emptyList()
-                val dimensionsByFactId = allDimensions.groupBy { it.factId }
-                buildDamumedServiceStats(facts, dimensionsByFactId)
-            } else {
-                emptyList()
+        // Aggregate LIS counts by canonical service catalog entry (fuzzy match)
+        // Result: catalogEntryId → (canonicalName, category, lisCount)
+        data class LisStatRow(val canonicalName: String, val category: String?, var lisCount: Int, var analyzerCount: Int)
+        val lisByCatalogId = linkedMapOf<String, LisStatRow>()
+
+        for ((lisServiceName, count) in rawLisServiceStats) {
+            val match = serviceMatchingService.matchByName(lisServiceName)
+            val key   = match.entry?.id ?: "__lis_unmatched__:$lisServiceName"
+            val row   = lisByCatalogId.getOrPut(key) {
+                LisStatRow(
+                    canonicalName = match.entry?.canonicalName ?: lisServiceName,
+                    category      = match.entry?.category?.name,
+                    lisCount      = 0,
+                    analyzerCount = 0,
+                )
             }
-        }.getOrElse { emptyList() }
-
-        val damumedTotalCompleted = damumedServiceStats.sumOf { it.completedCount }
-
-        val analyzerServiceCounts = allSamples
-            .filter { !it.serviceName.isNullOrBlank() }
-            .groupBy { it.serviceName!!.trim() }
-            .mapValues { it.value.size }
-
-        val enrichedDamumedStats = damumedServiceStats.map { stat ->
-            val count = analyzerServiceCounts[stat.serviceName]
-                ?: analyzerServiceCounts.entries
-                    .firstOrNull { (k, _) -> k.equals(stat.serviceName, ignoreCase = true) }?.value
-                ?: 0
-            stat.copy(analyzerCount = count)
+            row.lisCount += count
         }
+
+        // Add analyzer sample counts to the same map via fuzzy match
+        for (sample in allSamples) {
+            val serviceName = sample.serviceName?.takeIf { it.isNotBlank() } ?: continue
+            val match = when {
+                sample.serviceId != null -> {
+                    val byId = serviceMatchingService.matchByServiceId(sample.serviceId)
+                    if (byId.isMatch) byId else serviceMatchingService.matchByName(serviceName)
+                }
+                else -> serviceMatchingService.matchByName(serviceName)
+            }
+            val key = match.entry?.id ?: "__analyzer_unmatched__:$serviceName"
+            val row = lisByCatalogId.getOrPut(key) {
+                LisStatRow(
+                    canonicalName = match.entry?.canonicalName ?: serviceName,
+                    category      = match.entry?.category?.name,
+                    lisCount      = 0,
+                    analyzerCount = 0,
+                )
+            }
+            row.analyzerCount++
+        }
+
+        val enrichedDamumedStats = lisByCatalogId.values
+            .filter { it.lisCount > 0 || it.analyzerCount > 0 }
+            .map { row ->
+                DamumedServiceStat(
+                    serviceName    = row.canonicalName,
+                    completedCount = row.lisCount,
+                    category       = row.category,
+                    analyzerCount  = row.analyzerCount,
+                )
+            }
+            .sortedByDescending { it.completedCount }
+
+        val damumedTotalCompleted = enrichedDamumedStats.sumOf { it.completedCount }
 
         val totalAnalyzerServiceCount = allSamples
             .filter { !it.serviceName.isNullOrBlank() }
@@ -526,48 +541,4 @@ class LogAnomalyAnalysisServiceImpl(
         )
     }
 
-    private fun buildDamumedServiceStats(
-        facts: List<DamumedNormalizedFactEntity>,
-        dimensionsByFactId: Map<String, List<DamumedNormalizedFactDimensionEntity>>,
-    ): List<DamumedServiceStat> {
-        return facts
-            .filter { it.metricKey == "completed_count" && (it.numericValue ?: 0.0) > 0 }
-            .mapNotNull { fact ->
-                val dims = dimensionsByFactId[fact.entityId] ?: emptyList()
-                val serviceName = dims.firstOrNull { it.axisKey == "service" }?.rawValue?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?: return@mapNotNull null
-                val count = fact.numericValue?.toInt()?.takeIf { it > 0 } ?: return@mapNotNull null
-                DamumedServiceStat(
-                    serviceName = serviceName,
-                    completedCount = count,
-                    category = detectServiceCategory(serviceName),
-                )
-            }
-            .groupBy { it.serviceName }
-            .map { (serviceName, entries) ->
-                DamumedServiceStat(
-                    serviceName = serviceName,
-                    completedCount = entries.sumOf { it.completedCount },
-                    category = entries.firstOrNull()?.category,
-                )
-            }
-            .sortedByDescending { it.completedCount }
-    }
-
-    private fun detectServiceCategory(serviceName: String): String? {
-        val n = serviceName.lowercase()
-        return when {
-            n.contains("гематолог") || n.contains("общ") && n.contains("крови") ||
-                n.contains("лейкоцит") || n.contains("тромбоцит") || n.contains("гемоглобин") -> "Гематология"
-            n.contains("биохим") || n.contains("глюкоз") || n.contains("холестерин") ||
-                n.contains("белок") || n.contains("ферм") || n.contains("фибриноген") -> "Биохимия"
-            n.contains("иммунол") || n.contains("гормон") || n.contains("антитело") ||
-                n.contains("антиген") || n.contains("иммунофер") -> "Иммунология"
-            n.contains("коагул") || n.contains("свёрт") || n.contains("протромб") ||
-                n.contains("мно ") -> "Коагуляция"
-            n.contains("мочи") || n.contains("урин") || n.contains("моча") -> "Мочи"
-            else -> null
-        }
-    }
 }

@@ -18,6 +18,7 @@ import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogSourceType
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogUpload
 import lab.dev.med.univ.feature.reagents.domain.models.ParsedAnalyzerSample
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
+import org.slf4j.LoggerFactory
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
@@ -83,7 +84,10 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
     private val errorsXmlParserService: ErrorsXmlParserService,
     private val logAnomalyAnalysisService: LogAnomalyAnalysisService,
     private val completedJournalReconciliationService: AnalyzerLogCompletedJournalReconciliationService,
+    private val reconciliationSummaryService: ReconciliationSummaryService,
 ) : AnalyzerLogUploadIngestionService {
+
+    private val log = LoggerFactory.getLogger(AnalyzerLogUploadIngestionServiceImpl::class.java)
 
     override suspend fun upload(
         sourceType: AnalyzerLogSourceType,
@@ -191,8 +195,58 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
 
         val reconciledSamples = completedJournalReconciliationService.reconcileApplogsSamples(parsed.samples)
 
+        // Idempotent re-parse: drop samples that previously belonged to THIS upload
+        // (e.g. retry after a parse failure). Cross-upload deduplication is handled below.
         parsedAnalyzerSampleRepository.deleteAllByLogUploadId(processing.id)
-        parsedAnalyzerSampleRepository.saveAll(reconciledSamples.map { it.toEntity() }).toList()
+
+        // -------------------------------------------------------------
+        // Cross-upload deduplication
+        // -------------------------------------------------------------
+        // A physical analyzer event is identified by (analyzer_id, barcode, sample_timestamp).
+        // The same triplet can legitimately appear in multiple log files:
+        //   - multiple snapshots of a growing Applogs.txt (every 30 min the file is bigger)
+        //   - a rolled Applogs<timestamp>.log whose content was previously captured live
+        //   - a manually re-uploaded Applogs.txt
+        //
+        // We pre-filter the parsed batch against samples already in the DB for this analyzer
+        // within the same time window. Combined with the unique partial index installed in
+        // V27 (uq_parsed_sample_dedupe), this makes duplicate inserts impossible.
+        val analyzerId = processing.analyzerId
+        val (uniqueSamples, droppedDuplicates) = if (analyzerId != null && reconciledSamples.isNotEmpty()) {
+            val candidates = reconciledSamples.filter { it.barcode.isNotBlank() }
+            if (candidates.isEmpty()) {
+                reconciledSamples to 0
+            } else {
+                val minTs = candidates.minOf { it.sampleTimestamp }
+                val maxTs = candidates.maxOf { it.sampleTimestamp }
+                val existingKeys = parsedAnalyzerSampleRepository
+                    .findAllByAnalyzerIdAndSampleTimestampBetweenOrderBySampleTimestampAsc(
+                        analyzerId, minTs, maxTs,
+                    )
+                    .toList()
+                    .map { it.barcode to it.sampleTimestamp }
+                    .toSet()
+
+                val filtered = reconciledSamples.filter { sample ->
+                    sample.barcode.isBlank() ||
+                        (sample.barcode to sample.sampleTimestamp) !in existingKeys
+                }
+                filtered to (reconciledSamples.size - filtered.size)
+            }
+        } else {
+            reconciledSamples to 0
+        }
+
+        if (droppedDuplicates > 0) {
+            log.info(
+                "Applogs upload {}: skipped {} duplicate sample(s) already present for analyzer {} in [{}, {}]",
+                processing.id, droppedDuplicates, analyzerId, parsed.logPeriodStart, parsed.logPeriodEnd,
+            )
+        }
+
+        if (uniqueSamples.isNotEmpty()) {
+            parsedAnalyzerSampleRepository.saveAll(uniqueSamples.map { it.toEntity() }).toList()
+        }
 
         // Re-read fresh entity from DB to avoid optimistic locking conflict
         // (version may have changed if another thread touched the record)
@@ -212,6 +266,11 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         )
         val saved = uploadRepository.save(completed.toEntity()).toModel()
         logAnomalyAnalysisService.buildAnomaliesFromUpload(processing.id)
+
+        // After a fresh log batch lands, recompute reconciliation_summary for the affected
+        // dates so the dashboard reflects the new samples (and any late LIS matches that
+        // resolved earlier discrepancies).
+        rebuildReconciliationForUpload(saved)
         return saved
     }
 
@@ -219,14 +278,42 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         val bytes = readStoredBytes(processing.storagePath)
         val parsed = errorsXmlParserService.parse(bytes)
 
+        // -------------------------------------------------------------
+        // errors.xml is a current-state snapshot (the analyzer rewrites it),
+        // not append-only. Each new upload supersedes the previous one for
+        // this analyzer. We delete any prior errors.xml upload (and its samples
+        // via FK CASCADE) so the same barcode never accumulates duplicates.
+        // -------------------------------------------------------------
+        val analyzerId = processing.analyzerId
+        if (analyzerId != null) {
+            val prior = uploadRepository
+                .findFirstByAnalyzerIdAndSourceTypeOrderByUploadedAtDesc(
+                    analyzerId, AnalyzerLogSourceType.ERRORS_XML,
+                )
+            if (prior != null && prior.id != processing.id) {
+                log.info(
+                    "Superseding previous errors.xml upload {} for analyzer {} (new upload {})",
+                    prior.id, analyzerId, processing.id,
+                )
+                runCatching { uploadRepository.deleteById(prior.id) }
+                    .onFailure { log.warn("Failed to delete previous errors.xml upload ${prior.id}", it) }
+            }
+        }
+
         parsedAnalyzerSampleRepository.deleteAllByLogUploadId(processing.id)
+
+        // Use upload time as a deterministic timestamp shared across all samples in
+        // this errors.xml. The XML itself has no per-sample timestamps, so without this
+        // every parse pass would produce different LocalDateTime.now() values and break
+        // the (analyzer_id, barcode, sample_timestamp) dedup key on retries.
+        val sharedTimestamp = processing.uploadedAt
 
         val convertedSamples = parsed.samples.map { record ->
             ParsedAnalyzerSample(
                 id = UUID.randomUUID().toString(),
                 logUploadId = processing.id,
                 analyzerId = processing.analyzerId,
-                sampleTimestamp = LocalDateTime.now(),
+                sampleTimestamp = sharedTimestamp,
                 barcode = record.barcode,
                 deviceSystemName = record.deviceSystemName,
                 deviceName = record.deviceName,
@@ -270,7 +357,32 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         )
         val saved = uploadRepository.save(completed.toEntity()).toModel()
         logAnomalyAnalysisService.buildAnomaliesFromUpload(processing.id)
+        rebuildReconciliationForUpload(saved)
         return saved
+    }
+
+    /**
+     * Recompute reconciliation_summary for the date range covered by [upload].
+     * This refreshes KPIs and per-sample status (including PENDING_GRACE → RECONCILED
+     * transitions when LIS data has caught up since the previous run).
+     *
+     * Errors are swallowed — the upload itself has succeeded; a summary rebuild failure
+     * must not roll back the new samples (we'd lose the data we just ingested).
+     */
+    private suspend fun rebuildReconciliationForUpload(upload: AnalyzerLogUpload) {
+        val analyzerId = upload.analyzerId ?: return
+        val periodStart = upload.logPeriodStart?.toLocalDate()
+            ?: upload.uploadedAt.toLocalDate().minusDays(1)
+        val periodEnd = upload.logPeriodEnd?.toLocalDate()
+            ?: upload.uploadedAt.toLocalDate()
+        runCatching {
+            reconciliationSummaryService.rebuildForDateRange(periodStart, periodEnd, analyzerId)
+        }.onFailure { ex ->
+            log.warn(
+                "Reconciliation rebuild failed after upload {} (analyzer={}, {}..{})",
+                upload.id, analyzerId, periodStart, periodEnd, ex,
+            )
+        }
     }
 
     private fun validateFileName(sourceType: AnalyzerLogSourceType, filename: String) {

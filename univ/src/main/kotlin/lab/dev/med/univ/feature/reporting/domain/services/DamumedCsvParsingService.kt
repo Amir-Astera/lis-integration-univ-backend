@@ -13,6 +13,7 @@ import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedFactR
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedSectionRepository
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedReportUploadRepository
 import lab.dev.med.univ.feature.reporting.domain.errors.DamumedReportValidationException
+import lab.dev.med.univ.feature.reporting.domain.events.DamumedReportNormalizedEvent
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedLabReportKind
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportAxisType
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportNormalizationStatus
@@ -21,6 +22,7 @@ import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportSchemaCatal
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportUpload
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVParser
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
@@ -167,6 +169,7 @@ class DamumedCsvParsingServiceImpl(
     private val normalizedDimensionRepository: DamumedNormalizedDimensionRepository,
     private val normalizedFactRepository: DamumedNormalizedFactRepository,
     private val batchRepository: DamumedNormalizedBatchRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) : DamumedCsvParsingService {
 
     companion object {
@@ -326,7 +329,7 @@ class DamumedCsvParsingServiceImpl(
             batchRepository.batchInsertFacts(facts)
             batchRepository.batchInsertFactDimensions(factDimensions)
 
-            started.copy(
+            val persisted = started.copy(
                 parseStatus = DamumedReportParseStatus.PARSED,
                 parseCompletedAt = LocalDateTime.now(),
                 parsedSheetCount = 1,
@@ -340,6 +343,16 @@ class DamumedCsvParsingServiceImpl(
                 normalizedFactCount = facts.size,
                 normalizedDimensionCount = dimensions.size,
             ).persistUpload()
+
+            // Notify downstream consumers (e.g. reconciliation rebuild) that LIS data changed.
+            // Fire-and-forget — published AFTER successful persistence so listeners read a consistent state.
+            runCatching {
+                eventPublisher.publishEvent(
+                    DamumedReportNormalizedEvent(uploadId = upload.id, reportKind = upload.reportKind)
+                )
+            }
+
+            persisted
         } catch (ex: Exception) {
             cleanupExistingNormalizedData(upload.id)
             started.copy(
