@@ -17,12 +17,12 @@ private const val AGENT_KEY_HEADER = "X-Agent-Key"
 private const val AGENT_PATH_PREFIX = "/api/agent/"
 
 /**
- * Authenticates requests to /api/agent/** by an API key passed in X-Agent-Key.
- * Sets a [AgentAuthentication] in the reactive security context so controllers
+ * Authenticates agent API requests (under /api/agent/) by header X-Agent-Key.
+ * Sets [AgentAuthentication] in the reactive security context so controllers
  * can identify the calling agent via [ReactiveSecurityContextHolder].
  *
- * Touches `last_seen_at` / `last_ip` as a fire-and-forget side effect — failures
- * to update those columns must NOT break the request itself.
+ * Touches last_seen_at / last_ip as a fire-and-forget side effect; failures
+ * to update those columns must not break the request itself.
  */
 @Component
 class AgentSecurityFilter(

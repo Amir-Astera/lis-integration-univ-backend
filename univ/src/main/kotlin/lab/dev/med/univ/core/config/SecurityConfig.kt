@@ -25,8 +25,8 @@ import project.gigienist_reports.core.security.firebase.FirebaseHeadersExchangeM
 // Firebase Auth removed. All profiles now use LocalSessionAuthenticationService.
 // To enable Firebase: activate the "firebase" Spring profile.
 //
-// /api/agent/** is protected by AgentSecurityFilter (X-Agent-Key header) and
-// must be excluded from the Firebase/session filter chain.
+// Agent API paths are protected by AgentSecurityFilter (X-Agent-Key header)
+// and must be excluded from the Firebase/session filter chain.
 
 @Configuration
 @EnableWebFluxSecurity
