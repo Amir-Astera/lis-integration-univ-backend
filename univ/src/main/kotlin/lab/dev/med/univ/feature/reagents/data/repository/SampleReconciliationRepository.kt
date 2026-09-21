@@ -9,6 +9,35 @@ import java.time.LocalDateTime
 
 interface SampleReconciliationRepository : CoroutineCrudRepository<SampleReconciliationEntity, String> {
 
+    /** Open investigation candidates. Legitimate, wash and rerun records are excluded. */
+    @Query("""
+        SELECT sr.* FROM sample_reconciliation sr
+        WHERE sr.sample_date BETWEEN :from AND :to
+          AND (:analyzerId IS NULL OR sr.analyzer_id = :analyzerId)
+          AND sr.reconciliation_status IN ('DISCREPANCY', 'PENDING_GRACE')
+        ORDER BY sr.sample_date DESC, sr.reconciled_at DESC
+        LIMIT :pageSize OFFSET :offset
+    """)
+    fun findInvestigationCases(
+        from: LocalDate,
+        to: LocalDate,
+        analyzerId: String?,
+        pageSize: Int,
+        offset: Int,
+    ): Flow<SampleReconciliationEntity>
+
+    @Query("""
+        SELECT COUNT(*) FROM sample_reconciliation sr
+        WHERE sr.sample_date BETWEEN :from AND :to
+          AND (:analyzerId IS NULL OR sr.analyzer_id = :analyzerId)
+          AND sr.reconciliation_status IN ('DISCREPANCY', 'PENDING_GRACE')
+    """)
+    suspend fun countInvestigationCases(
+        from: LocalDate,
+        to: LocalDate,
+        analyzerId: String?,
+    ): Long
+
     /** Drill-down: all samples for a specific date + catalog entry (optional analyzer filter). */
     @Query("""
         SELECT sr.* FROM sample_reconciliation sr
