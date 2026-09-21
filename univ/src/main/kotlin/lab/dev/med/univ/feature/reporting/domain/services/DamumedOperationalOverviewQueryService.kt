@@ -94,7 +94,7 @@ class DamumedOperationalOverviewQueryServiceImpl(
         }
         val allFactIds = allFacts.map { it.entityId }
         val dimensionsByFactId = if (allFactIds.isNotEmpty()) {
-            factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(allFactIds).toList()
+            loadFactDimensions(allFactIds)
                 .groupBy { it.factId }
         } else {
             emptyMap()
@@ -714,6 +714,19 @@ class DamumedOperationalOverviewQueryServiceImpl(
             .joinToString("|") { "${it.id}:${it.normalizationCompletedAt}:${it.normalizedFactCount}:${it.normalizedDimensionCount}" }
     }
 
+    /**
+     * Spring Data R2DBC expands an `IN` collection to one bind parameter per fact.
+     * Large Damumed uploads can exceed what the PostgreSQL driver reliably accepts
+     * in a single statement, so load dimensions in bounded chunks.
+     */
+    private suspend fun loadFactDimensions(
+        factIds: List<String>,
+    ): List<DamumedNormalizedFactDimensionEntity> =
+        factIds
+            .distinct()
+            .chunked(FACT_DIMENSION_QUERY_BATCH_SIZE)
+            .flatMap { factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(it).toList() }
+
     private fun parseNumericSafe(value: String?): Double? {
         val normalized = value?.replace(" ", "")?.replace(",", ".")?.trim()?.takeIf { it.isNotBlank() } ?: return null
         return normalized.toDoubleOrNull()
@@ -767,6 +780,7 @@ class DamumedOperationalOverviewQueryServiceImpl(
     }
 
     private companion object {
+        private const val FACT_DIMENSION_QUERY_BATCH_SIZE = 250
         const val OPERATIONAL_OVERVIEW_SNAPSHOT_KEY = "damumed-operational-overview"
         val DATE_REGEX = Regex("\\d{2}\\.\\d{2}\\.\\d{4}")
     }

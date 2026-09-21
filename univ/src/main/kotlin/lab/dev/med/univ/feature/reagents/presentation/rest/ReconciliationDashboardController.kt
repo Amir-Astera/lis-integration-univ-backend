@@ -5,17 +5,24 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import kotlinx.coroutines.reactive.awaitFirst
 import lab.dev.med.univ.feature.reagents.domain.models.SampleReconciliationStatus
+import lab.dev.med.univ.feature.reagents.domain.services.ReconciliationCaseService
 import lab.dev.med.univ.feature.reagents.domain.services.ReconciliationSummaryService
+import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationCaseDetailDto
+import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationCasePageDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.DrillDownPageDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationAnalyzerSummaryDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationDailyPointDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationKpiSummaryDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationServiceRowDto
+import lab.dev.med.univ.feature.reagents.presentation.dto.UpdateReconciliationCaseRequest
 import lab.dev.med.univ.feature.reagents.presentation.dto.toDto
 import org.slf4j.Logger
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -27,13 +34,12 @@ import project.gigienist_reports.feature.users.domain.services.UserAggregateServ
 import java.time.LocalDate
 
 /**
- * Reconciliation dashboard API.
+ * Reconciliation and source-investigation API.
  *
- * Core business goal: detect reagent budget leakage by comparing what the analyzer
- * actually ran (APPLOGS) against what was registered in the LIS (Damumed journal).
- *
- * discrepancy = analyzer_ran - lis_registered — every unit here is money out the door
- * without a corresponding LIS record (unauthorized / unregistered test execution).
+ * It compares independently uploaded analyzer and Damumed data. A mismatch is a
+ * review candidate: it can be caused by a delayed journal export, technical code,
+ * incomplete analyzer event, or an integration issue. It is not proof of manual
+ * entry, unauthorized work, or financial loss without an audit of primary sources.
  */
 @RestController
 @RequestMapping("/api/reagents/reconciliation")
@@ -42,6 +48,7 @@ import java.time.LocalDate
 class ReconciliationDashboardController(
     logger: Logger,
     private val reconciliationSummaryService: ReconciliationSummaryService,
+    private val reconciliationCaseService: ReconciliationCaseService,
     private val userAggregateService: UserAggregateService,
 ) : Controller(logger) {
 
@@ -160,6 +167,63 @@ class ReconciliationDashboardController(
             val effectiveSize = size.coerceIn(1, 500)
             val result = reconciliationSummaryService.getDrillDown(from, to, catalogId, analyzerId, status, page, effectiveSize)
             ResponseEntity.ok(result.toDto())
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    @GetMapping("/cases")
+    @Operation(summary = "Investigation case queue backed by persisted reconciliation facts")
+    suspend fun getCases(
+        @RequestParam(required = false) dateFrom: LocalDate?,
+        @RequestParam(required = false) dateTo: LocalDate?,
+        @RequestParam(required = false) analyzerId: String?,
+        @RequestParam(required = false, defaultValue = "0") page: Int,
+        @RequestParam(required = false, defaultValue = "50") size: Int,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<ReconciliationCasePageDto> {
+        return try {
+            val (from, to) = resolvePeriod(dateFrom, dateTo)
+            ResponseEntity.ok(
+                reconciliationCaseService.listCases(
+                    from = from,
+                    to = to,
+                    analyzerId = analyzerId,
+                    page = page,
+                    size = size,
+                )
+            )
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    @GetMapping("/cases/{caseId}")
+    @Operation(summary = "Investigation case evidence, chronology and audit history")
+    suspend fun getCase(
+        @PathVariable caseId: String,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<ReconciliationCaseDetailDto> {
+        return try {
+            ResponseEntity.ok(reconciliationCaseService.getCase(caseId))
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    @PutMapping("/cases/{caseId}")
+    @Operation(summary = "Save an auditable manager decision for an investigation case")
+    suspend fun updateCase(
+        @PathVariable caseId: String,
+        @RequestBody request: UpdateReconciliationCaseRequest,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<ReconciliationCaseDetailDto> {
+        return try {
+            val sessionUser = FirebaseSecurityUtils.getUserFromRequest(exchange).awaitFirst()
+            ResponseEntity.ok(reconciliationCaseService.updateCase(caseId, request, sessionUser.login))
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
             throw ResponseStatusException(code, message, ex)

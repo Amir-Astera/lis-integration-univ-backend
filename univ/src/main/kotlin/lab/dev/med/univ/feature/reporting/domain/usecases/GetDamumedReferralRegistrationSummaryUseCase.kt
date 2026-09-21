@@ -41,7 +41,7 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
 
         val factIds = facts.map { it.entityId }
         val dimensionsByFactId = if (factIds.isNotEmpty()) {
-            factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(factIds).toList()
+            loadFactDimensions(factIds)
                 .groupBy { it.factId }
         } else {
             emptyMap()
@@ -149,6 +149,14 @@ class GetDamumedReferralRegistrationSummaryUseCaseImpl(
             dailyRegistrationStats = dailyStats,
         )
     }
+
+    private suspend fun loadFactDimensions(
+        factIds: List<String>,
+    ): List<DamumedNormalizedFactDimensionEntity> =
+        factIds
+            .distinct()
+            .chunked(250)
+            .flatMap { factDimensionRepository.findAllByFactIdInOrderByAxisKeyAsc(it).toList() }
 
     private fun extractRow(envelope: FactEnvelope): ReferralJournalRow? {
         if (envelope.fact.reportKind != DamumedLabReportKind.REFERRAL_REGISTRATION_JOURNAL) {
