@@ -27,6 +27,7 @@ interface ServiceReagentConsumptionNormRepository : CoroutineCrudRepository<Serv
  */
 interface DamumedReportReagentConsumptionRepository : CoroutineCrudRepository<DamumedReportReagentConsumptionEntity, String> {
     fun findAllByUploadIdOrderByCalculatedAtDesc(uploadId: String): Flow<DamumedReportReagentConsumptionEntity>
+    fun findAllByUploadId(uploadId: String): Flow<DamumedReportReagentConsumptionEntity>
     fun findAllByFactId(factId: String): Flow<DamumedReportReagentConsumptionEntity>
     fun findAllByServiceNameOrderByCalculatedAtDesc(serviceName: String): Flow<DamumedReportReagentConsumptionEntity>
     suspend fun deleteAllByUploadId(uploadId: String)

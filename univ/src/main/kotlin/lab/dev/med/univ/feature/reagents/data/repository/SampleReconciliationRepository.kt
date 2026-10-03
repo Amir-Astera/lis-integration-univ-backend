@@ -74,6 +74,19 @@ interface SampleReconciliationRepository : CoroutineCrudRepository<SampleReconci
         status: String?,
     ): Long
 
+    /** Exact barcode → Damumed referral match on the same completed-study date. */
+    @Query("""
+        SELECT COUNT(*) FROM sample_reconciliation sr
+        WHERE sr.sample_date BETWEEN :from AND :to
+          AND (:analyzerId IS NULL OR sr.analyzer_id = :analyzerId)
+          AND sr.lis_referral_key IS NOT NULL
+    """)
+    suspend fun countExactDatedReferralLinks(
+        from: LocalDate,
+        to: LocalDate,
+        analyzerId: String?,
+    ): Long
+
     /** Samples whose grace has expired and are still PENDING_GRACE — scheduler target. */
     @Query("""
         SELECT sr.* FROM sample_reconciliation sr

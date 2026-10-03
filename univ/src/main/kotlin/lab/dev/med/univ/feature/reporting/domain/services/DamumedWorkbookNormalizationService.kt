@@ -29,7 +29,9 @@ import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportNormalizati
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportNormalizationStatus
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportSchemaCatalog
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedReportUpload
+import lab.dev.med.univ.feature.reporting.domain.events.DamumedReportNormalizedEvent
 import lab.dev.med.univ.feature.reporting.domain.errors.DamumedReportValidationException
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 
@@ -49,6 +51,7 @@ class DamumedWorkbookNormalizationServiceImpl(
     private val normalizedFactRepository: DamumedNormalizedFactRepository,
     private val normalizedFactDimensionRepository: DamumedNormalizedFactDimensionRepository,
     private val batchRepository: DamumedNormalizedBatchRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) : DamumedWorkbookNormalizationService {
     override suspend fun normalize(upload: DamumedReportUpload): DamumedReportUpload {
         val started = upload.copy(
@@ -67,10 +70,12 @@ class DamumedWorkbookNormalizationServiceImpl(
             val profile = DamumedReportSchemaCatalog.profileFor(started.reportKind)
             val sheets = parsedSheetRepository.findAllByUploadIdOrderBySheetIndexAsc(started.id).toList()
             if (sheets.isEmpty()) {
-                return started.copy(
+                val completed = started.copy(
                     normalizationStatus = DamumedReportNormalizationStatus.NORMALIZED,
                     normalizationCompletedAt = LocalDateTime.now(),
                 ).persistUpload()
+                publishNormalizedEvent(completed)
+                return completed
             }
 
             val snapshots = buildList {
@@ -90,13 +95,15 @@ class DamumedWorkbookNormalizationServiceImpl(
                 else -> normalizeGenericReport(started, profile, snapshots)
             }
 
-            started.copy(
+            val completed = started.copy(
                 normalizationStatus = DamumedReportNormalizationStatus.NORMALIZED,
                 normalizationCompletedAt = LocalDateTime.now(),
                 normalizedSectionCount = counters.sectionCount,
                 normalizedFactCount = counters.factCount,
                 normalizedDimensionCount = counters.dimensionCount,
             ).persistUpload()
+            publishNormalizedEvent(completed)
+            completed
         } catch (ex: Exception) {
             cleanupExistingNormalizedData(upload.id)
             started.copy(
@@ -2336,6 +2343,14 @@ class DamumedWorkbookNormalizationServiceImpl(
 
     private suspend fun DamumedReportUpload.persistUpload(): DamumedReportUpload {
         return uploadRepository.save(this.toEntity()).toModel()
+    }
+
+    private fun publishNormalizedEvent(upload: DamumedReportUpload) {
+        runCatching {
+            eventPublisher.publishEvent(
+                DamumedReportNormalizedEvent(uploadId = upload.id, reportKind = upload.reportKind),
+            )
+        }
     }
 
     private fun isPotentialFactCell(cell: DamumedParsedCellEntity): Boolean {

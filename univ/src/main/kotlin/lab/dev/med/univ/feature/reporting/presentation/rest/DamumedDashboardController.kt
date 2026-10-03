@@ -12,6 +12,7 @@ import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalDashbo
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalStockItem
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalStatusItem
 import lab.dev.med.univ.feature.reporting.domain.models.DamumedOperationalTatItem
+import lab.dev.med.univ.feature.reporting.domain.services.DamumedFastOperationalMetricsService
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedOperationalOverviewUseCase
 import org.slf4j.Logger
 import org.springframework.http.ResponseEntity
@@ -32,6 +33,7 @@ import project.gigienist_reports.feature.users.domain.services.UserAggregateServ
 class DamumedDashboardController(
     logger: Logger,
     private val getOperationalOverviewUseCase: GetDamumedOperationalOverviewUseCase,
+    private val fastMetricsService: DamumedFastOperationalMetricsService,
     private val userAggregateService: UserAggregateService,
 ) : Controller(logger) {
 
@@ -94,26 +96,21 @@ class DamumedDashboardController(
     suspend fun getKpi(
         @RequestParam(required = false, defaultValue = "month") period: String,
         exchange: ServerWebExchange,
-    ): ResponseEntity<Map<String, Any>> {
+    ): ResponseEntity<Map<String, Any?>> {
         return try {
-            val overview = getOperationalOverviewUseCase(false)
-            val selectedSummary = when (period) {
-                "day" -> overview.dashboard.day
-                "week" -> overview.dashboard.week  
-                else -> overview.dashboard.month
-            }
-            
+            val selectedSummary = fastMetricsService.kpi(period)
             ResponseEntity.ok(mapOf(
+                "period" to selectedSummary.period,
+                "referenceDate" to selectedSummary.referenceDate?.toString(),
+                "periodFrom" to selectedSummary.periodFrom?.toString(),
+                "periodTo" to selectedSummary.periodTo?.toString(),
+                "periodLabel" to selectedSummary.periodLabel,
                 "researchCount" to selectedSummary.researchCount,
                 "patientCount" to selectedSummary.patientCount,
                 "departmentCount" to selectedSummary.departmentCount,
                 "sentResultsCount" to selectedSummary.sentResultsCount,
                 "materialsCount" to selectedSummary.materialsCount,
-                "serviceCostTotal" to selectedSummary.serviceCostTotal,
-                "criticalSamples" to overview.dashboard.criticalSamples,
-                "samplesTotal" to overview.dashboard.samplesTotal,
-                "validationQueue" to overview.dashboard.validationQueue,
-                "analyzerLoadPercent" to overview.dashboard.analyzerLoadPercent
+                "serviceCostTotal" to selectedSummary.serviceCostTotal
             ))
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
@@ -124,16 +121,11 @@ class DamumedDashboardController(
     @GetMapping("/tat")
     suspend fun getTatAnalytics(
         @RequestParam(required = false, defaultValue = "month") period: String,
+        @RequestParam(required = false, defaultValue = "20") limit: Int,
         exchange: ServerWebExchange,
     ): ResponseEntity<List<DamumedOperationalTatItem>> {
         return try {
-            val overview = getOperationalOverviewUseCase(false)
-            val selectedSummary = when (period) {
-                "day" -> overview.dashboard.day
-                "week" -> overview.dashboard.week
-                else -> overview.dashboard.month
-            }
-            ResponseEntity.ok(selectedSummary.tatByService)
+            ResponseEntity.ok(fastMetricsService.tat(period, limit.coerceIn(0, 500)))
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
             throw ResponseStatusException(code, message, ex)
@@ -182,10 +174,12 @@ class DamumedDashboardController(
     }
 
     @GetMapping("/daily-stats")
-    suspend fun getDailyStats(exchange: ServerWebExchange): ResponseEntity<List<DamumedOperationalDailyStat>> {
+    suspend fun getDailyStats(
+        @RequestParam(required = false, defaultValue = "month") period: String,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<List<DamumedOperationalDailyStat>> {
         return try {
-            val overview = getOperationalOverviewUseCase(false)
-            ResponseEntity.ok(overview.dashboard.month.dailyStats)
+            ResponseEntity.ok(fastMetricsService.dailyStats(period))
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
             throw ResponseStatusException(code, message, ex)
@@ -193,12 +187,15 @@ class DamumedDashboardController(
     }
 
     @GetMapping("/department-loads")
-    suspend fun getDepartmentLoads(exchange: ServerWebExchange): ResponseEntity<Map<String, Any>> {
+    suspend fun getDepartmentLoads(
+        @RequestParam(required = false, defaultValue = "month") period: String,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<Map<String, Any>> {
         return try {
-            val overview = getOperationalOverviewUseCase(false)
+            val loads = fastMetricsService.departmentLoads(period)
             ResponseEntity.ok(mapOf(
-                "loads" to overview.dashboard.departmentLoads,
-                "analyzerLoadPercent" to overview.dashboard.analyzerLoadPercent
+                "loads" to loads,
+                "analyzerLoadPercent" to 0
             ))
         } catch (ex: Exception) {
             val (code, message) = getError(ex)

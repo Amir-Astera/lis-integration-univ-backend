@@ -1,0 +1,590 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<DriversData>
+  <Device SystemName="20747" Name="BS-240">
+    <Sample Code="1532">
+      <Result TestCode="FER" MUCode="ng/mL" Value="771" />
+    </Sample>
+    <Sample Code="1231">
+      <Result TestCode="FER_FL" MUCode="FER_FL" Value="&lt;" />
+      <Result TestCode="FER" MUCode="ng/mL" Value="9,08" />
+    </Sample>
+    <Sample Code="1030">
+      <Result TestCode="FER" MUCode="ng/mL" Value="175,02" />
+    </Sample>
+    <Sample Code="2022">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="6691,93" />
+    </Sample>
+    <Sample Code="00829">
+      <Result TestCode="FER" MUCode="ng/mL" Value="228,11" />
+    </Sample>
+    <Sample Code="0228">
+      <Result TestCode="FER" MUCode="ng/mL" Value="260,41" />
+    </Sample>
+    <Sample Code="0827">
+      <Result TestCode="FER" MUCode="ng/mL" Value="48,75" />
+    </Sample>
+    <Sample Code="1625">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="31,75" />
+    </Sample>
+    <Sample Code="1724">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="24,57" />
+    </Sample>
+    <Sample Code="1923">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="44,15" />
+    </Sample>
+    <Sample Code="0126">
+      <Result TestCode="FER" MUCode="ng/mL" Value="13,76" />
+    </Sample>
+    <Sample Code="51563071">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,02" />
+      <Result TestCode="AMY" MUCode="U/L" Value="70,4" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="59,09" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="0019">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,76" />
+      <Result TestCode="FER_FL" MUCode="FER_FL" Value="&lt;" />
+      <Result TestCode="FER" MUCode="ng/mL" Value="6,33" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="4,95" />
+      <Result TestCode="TP" MUCode="g/L" Value="83,30" />
+      <Result TestCode="AST" MUCode="U/L" Value="18,10" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="ALT" MUCode="U/L" Value="10,26" />
+      <Result TestCode="Glu-G" MUCode="mmol/L" Value="4,18" />
+    </Sample>
+    <Sample Code="22297234">
+      <Result TestCode="FER_FL" MUCode="FER_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="51568778">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,4639" />
+      <Result TestCode="FER_FL" MUCode="FER_FL" Value="RRN,&gt;" />
+      <Result TestCode="TP" MUCode="g/L" Value="85,61" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566440">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,74" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562125">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,52" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51563088">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,30" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="33,02" />
+      <Result TestCode="Fe_FL" MUCode="Fe_FL" Value="RGTE" />
+      <Result TestCode="AMY" MUCode="U/L" Value="9,92" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="137,02" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51558650">
+      <Result TestCode="Glu-G" MUCode="mmol/L" Value="8,99" />
+    </Sample>
+    <Sample Code="51563029">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,28" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51563037">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,34" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="4,12" />
+    </Sample>
+    <Sample Code="51563044">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,94" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51563049">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,10" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566755">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,38" />
+      <Result TestCode="FER_FL" MUCode="FER_FL" Value="&lt;" />
+      <Result TestCode="RF_FL" MUCode="RF_FL" Value="RGTE,&lt;" />
+      <Result TestCode="RF" MUCode="IU/mL" Value="3,92" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,35" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,33" />
+    </Sample>
+    <Sample Code="51563969">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,16" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="43,46" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="0,9867" />
+    </Sample>
+    <Sample Code="51566760">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="3,76" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="41,64" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="51566762">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,83" />
+      <Result TestCode="RF_FL" MUCode="RF_FL" Value="RGTE,&lt;" />
+      <Result TestCode="RF" MUCode="IU/mL" Value="6,6" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="0,6724" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,49" />
+    </Sample>
+    <Sample Code="51563987">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,7419" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="47,54" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="3,62" />
+    </Sample>
+    <Sample Code="51563965">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,32" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="3,94" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,29" />
+    </Sample>
+    <Sample Code="51563962">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,76" />
+      <Result TestCode="AMY" MUCode="U/L" Value="57,4" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,08" />
+    </Sample>
+    <Sample Code="51566756">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,35" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="41,27" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALT_FL" MUCode="ALT_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="2,99" />
+    </Sample>
+    <Sample Code="51563074">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="4,06" />
+      <Result TestCode="AMY" MUCode="U/L" Value="55,13" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="15,61" />
+    </Sample>
+    <Sample Code="51563075">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,23" />
+      <Result TestCode="AMY" MUCode="U/L" Value="65,32" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="19,10" />
+    </Sample>
+    <Sample Code="51563972">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,60" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="32,28" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="22297168">
+      <Result TestCode="Fe_FL" MUCode="Fe_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566844">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="2916,39" />
+    </Sample>
+    <Sample Code="51569262">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,975" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="3,38" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="89,75" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="0029">
+      <Result TestCode="FER" MUCode="ng/mL" Value="674,49" />
+    </Sample>
+    <Sample Code="0011">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="62,79" />
+    </Sample>
+    <Sample Code="0010">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,9333" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="4,5" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="85,53" />
+      <Result TestCode="TP" MUCode="g/L" Value="74,27" />
+      <Result TestCode="AST" MUCode="U/L" Value="18,19" />
+      <Result TestCode="ALT" MUCode="U/L" Value="19,47" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="2,32" />
+      <Result TestCode="T-Bil-V" MUCode="?mol/L" Value="9,85" />
+    </Sample>
+    <Sample Code="51568626">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,54" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="4,39" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="30,76" />
+      <Result TestCode="AMY" MUCode="U/L" Value="60,4" />
+      <Result TestCode="TP" MUCode="g/L" Value="88,9" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="236,87" />
+      <Result TestCode="AST" MUCode="U/L" Value="36,92" />
+      <Result TestCode="ALT" MUCode="U/L" Value="14,5" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="3,22" />
+      <Result TestCode="T-Bil-V" MUCode="?mol/L" Value="9,86" />
+      <Result TestCode="Glu-G" MUCode="mmol/L" Value="7,31" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,39" />
+    </Sample>
+    <Sample Code="51558625">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,15" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,24" />
+    </Sample>
+    <Sample Code="51562191">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,64" />
+    </Sample>
+    <Sample Code="51563229">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,80" />
+    </Sample>
+    <Sample Code="51563226">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="3,79" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,95" />
+    </Sample>
+    <Sample Code="51563025">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,06" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,52" />
+    </Sample>
+    <Sample Code="51555546">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,47" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51569303">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,31" />
+      <Result TestCode="TP" MUCode="g/L" Value="81,2" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+    </Sample>
+    <Sample Code="1707">
+      <Result TestCode="FER" MUCode="ng/mL" Value="29,72" />
+    </Sample>
+    <Sample Code="1606">
+      <Result TestCode="FER" MUCode="ng/mL" Value="94,91" />
+    </Sample>
+    <Sample Code="1619">
+      <Result TestCode="FER" MUCode="ng/mL" Value="113,65" />
+    </Sample>
+    <Sample Code="1518">
+      <Result TestCode="FER" MUCode="ng/mL" Value="96,67" />
+    </Sample>
+    <Sample Code="1313">
+      <Result TestCode="FER" MUCode="ng/mL" Value="121,86" />
+    </Sample>
+    <Sample Code="1201">
+      <Result TestCode="FER" MUCode="ng/mL" Value="183,6" />
+    </Sample>
+    <Sample Code="11">
+      <Result TestCode="CRP" MUCode="mg/L" Value="20,7" />
+    </Sample>
+    <Sample Code="10">
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="0" />
+    </Sample>
+    <Sample Code="51562196">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="3,13" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562195">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,05" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51564022">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,78" />
+      <Result TestCode="RF_FL" MUCode="RF_FL" Value="RGTE,&lt;" />
+      <Result TestCode="RF" MUCode="IU/mL" Value="5,09" />
+      <Result TestCode="AMY" MUCode="U/L" Value="33,95" />
+      <Result TestCode="TP" MUCode="g/L" Value="71,52" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566222">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,72" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="35,76" />
+      <Result TestCode="RF_FL" MUCode="RF_FL" Value="RGTE,&lt;" />
+      <Result TestCode="RF" MUCode="IU/mL" Value="9,17" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51558618">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,58" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="0" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,37" />
+    </Sample>
+    <Sample Code="51564025">
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="43,97" />
+      <Result TestCode="Fe_FL" MUCode="Fe_FL" Value="RGTE" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+    </Sample>
+    <Sample Code="51558620">
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="51564021">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,8046" />
+      <Result TestCode="UREA_FL" MUCode="UREA_FL" Value="&lt;" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="-0,459" />
+    </Sample>
+    <Sample Code="51568157">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,15" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="2,43" />
+    </Sample>
+    <Sample Code="0001">
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,6046" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="6,1" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="85,6" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+      <Result TestCode="TC" MUCode="mmol/L" Value="3,59" />
+      <Result TestCode="AMY" MUCode="U/L" Value="34,7" />
+      <Result TestCode="TP" MUCode="g/L" Value="73,13" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="0" />
+      <Result TestCode="AST" MUCode="U/L" Value="23,66" />
+      <Result TestCode="ALT" MUCode="U/L" Value="39,19" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,75" />
+      <Result TestCode="T-Bil-V" MUCode="?mol/L" Value="5,7" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Glu-G" MUCode="mmol/L" Value="4,78" />
+    </Sample>
+    <Sample Code="40">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="6678,84" />
+      <Result TestCode="Ca_FL" MUCode="Ca_FL" Value="&gt;" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="4,70" />
+    </Sample>
+    <Sample Code="41">
+      <Result TestCode="FER" MUCode="ng/mL" Value="22,02" />
+    </Sample>
+    <Sample Code="38">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="6980,50" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="5,40" />
+    </Sample>
+    <Sample Code="39">
+      <Result TestCode="CREA-S_FL" MUCode="CREA-S_FL" Value="ABS,&gt;" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="15763,52" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="0,3891" />
+    </Sample>
+    <Sample Code="37">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="10928,93" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="3,92" />
+    </Sample>
+    <Sample Code="36">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="16132,62" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,56" />
+    </Sample>
+    <Sample Code="35">
+      <Result TestCode="Phosphorus" MUCode="mmol/L" Value="1,56" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="137,06" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,23" />
+    </Sample>
+    <Sample Code="34">
+      <Result TestCode="Phosphorus" MUCode="mmol/L" Value="1,8" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="338,43" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,24" />
+    </Sample>
+    <Sample Code="33">
+      <Result TestCode="Phosphorus" MUCode="mmol/L" Value="1,77" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="228,51" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,27" />
+    </Sample>
+    <Sample Code="32">
+      <Result TestCode="Phosphorus" MUCode="mmol/L" Value="1,84" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="206,15" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,13" />
+    </Sample>
+    <Sample Code="51566450">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,92" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566204">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,37" />
+      <Result TestCode="AMY" MUCode="U/L" Value="65,68" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="29">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,34" />
+      <Result TestCode="FER" MUCode="ng/mL" Value="10,94" />
+      <Result TestCode="RF_FL" MUCode="RF_FL" Value="RGTE" />
+      <Result TestCode="RF" MUCode="IU/mL" Value="27,6" />
+      <Result TestCode="UREA" MUCode="mmol/L" Value="3,98" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="62,00" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+      <Result TestCode="TC" MUCode="mmol/L" Value="6,03" />
+      <Result TestCode="AMY" MUCode="U/L" Value="53,80" />
+      <Result TestCode="TP" MUCode="g/L" Value="74,03" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="ALP" MUCode="U/L" Value="111,02" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="0" />
+      <Result TestCode="AST" MUCode="U/L" Value="16,73" />
+      <Result TestCode="ALT" MUCode="U/L" Value="12,54" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="1,89" />
+      <Result TestCode="T-Bil-V" MUCode="?mol/L" Value="8,31" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Glu-G" MUCode="mmol/L" Value="4,66" />
+    </Sample>
+    <Sample Code="51564806">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,9177" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51564802">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,07" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566482">
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="3978,19" />
+    </Sample>
+    <Sample Code="51564038">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,5" />
+      <Result TestCode="ALT" MUCode="U/L" Value="32,96" />
+    </Sample>
+    <Sample Code="51566505">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,05" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="37,32" />
+    </Sample>
+    <Sample Code="51557440">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,04" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="3,74" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,14" />
+    </Sample>
+    <Sample Code="51566202">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,18" />
+      <Result TestCode="AMY_FL" MUCode="AMY_FL" Value="&lt;" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="RRN,&gt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="0022">
+      <Result TestCode="FER" MUCode="ng/mL" Value="17,85" />
+      <Result TestCode="Fe_FL" MUCode="Fe_FL" Value="RGTE" />
+      <Result TestCode="Fe" MUCode="?mol/L" Value="7,55" />
+    </Sample>
+    <Sample Code="51558654">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,97" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,24" />
+    </Sample>
+    <Sample Code="51565926">
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51565936">
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51565940">
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566607">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,4592" />
+    </Sample>
+    <Sample Code="51564043">
+      <Result TestCode="Complement C4_FL" MUCode="Complement C4_FL" Value="RGTE" />
+      <Result TestCode="Complement C4" MUCode="g/L" Value="0,156" />
+      <Result TestCode="Complement C3_FL" MUCode="Complement C3_FL" Value="RGTE" />
+      <Result TestCode="Complement C3" MUCode="g/L" Value="1,22" />
+    </Sample>
+    <Sample Code="51566519">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1" />
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="38,09" />
+    </Sample>
+    <Sample Code="51566626">
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566612">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,33" />
+    </Sample>
+    <Sample Code="51566602">
+      <Result TestCode="Fe_FL" MUCode="Fe_FL" Value="RGTE" />
+      <Result TestCode="Fe" MUCode="?mol/L" Value="13,90" />
+    </Sample>
+    <Sample Code="51566504">
+      <Result TestCode="Complement C4_FL" MUCode="Complement C4_FL" Value="RGTE" />
+      <Result TestCode="Complement C4" MUCode="g/L" Value="0,2274" />
+      <Result TestCode="Complement C3_FL" MUCode="Complement C3_FL" Value="RGTE" />
+      <Result TestCode="Complement C3" MUCode="g/L" Value="1,48" />
+    </Sample>
+    <Sample Code="51566489">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,46" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+    </Sample>
+    <Sample Code="51566465">
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="31,29" />
+    </Sample>
+    <Sample Code="51566610">
+      <Result TestCode="Albumin_FL" MUCode="Albumin_FL" Value="RGTE" />
+      <Result TestCode="Albumin" MUCode="g/L" Value="26,08" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51563007">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,64" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562997">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,79" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562973">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,93" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562991">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="5,96" />
+      <Result TestCode="D-Bil-V_FL" MUCode="D-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="D-Bil-V" MUCode="?mol/L" Value="0,0541" />
+      <Result TestCode="T-Bil-V_FL" MUCode="T-Bil-V_FL" Value="&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51562978">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,99" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51564788">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,98" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51564779">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,88" />
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="4">
+      <Result TestCode="UREA" MUCode="mmol/L" Value="2,9" />
+      <Result TestCode="CREA-S" MUCode="?mol/L" Value="10,86" />
+      <Result TestCode="TP" MUCode="g/L" Value="45,7" />
+      <Result TestCode="CRP" MUCode="mg/L" Value="88,99" />
+    </Sample>
+    <Sample Code="51564778">
+      <Result TestCode="TP_FL" MUCode="TP_FL" Value="&lt;" />
+    </Sample>
+    <Sample Code="51566529">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="3,14" />
+      <Result TestCode="TC_FL" MUCode="TC_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566539">
+      <Result TestCode="CRP_FL" MUCode="CRP_FL" Value="LOW,&lt;" />
+    </Sample>
+    <Sample Code="51558659">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="0,8936" />
+      <Result TestCode="ALP_FL" MUCode="ALP_FL" Value="RGTE" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+      <Result TestCode="Ca" MUCode="mmol/L" Value="2,3" />
+    </Sample>
+    <Sample Code="51566143">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="1,45" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+    <Sample Code="51566144">
+      <Result TestCode="AST/ALT" MUCode="AST/ALT" Value="2,63" />
+      <Result TestCode="Glu-G_FL" MUCode="Glu-G_FL" Value="RGTE" />
+    </Sample>
+  </Device>
+</DriversData>

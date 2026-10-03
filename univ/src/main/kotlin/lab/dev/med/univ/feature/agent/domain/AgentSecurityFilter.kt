@@ -73,10 +73,6 @@ class AgentSecurityFilter(
                     )
                 }
             }
-            .onErrorResume { ex ->
-                log.error("Agent auth failed unexpectedly", ex)
-                unauthorized(exchange)
-            }
     }
 
     private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {

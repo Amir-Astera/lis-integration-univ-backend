@@ -11,12 +11,14 @@ import java.time.LocalDateTime
 enum class ReconciliationStatus {
     /** logs_count == reconciled_count — all analyzer runs confirmed in LIS */
     CLEAN,
-    /** discrepancy_count > 0 — analyzer ran tests with no LIS record (reagent waste) */
+    /** Both sources have comparable facts, but their evidence still requires review. */
     DISCREPANCY,
     /** All unreconciled samples are within the grace window (immunology) */
     PENDING_GRACE,
     /** No analyzer data for this service on this date */
     NO_DATA,
+    /** Analyzer activity exists but no Damumed source facts cover the same period. */
+    NO_COMPARABLE_EVIDENCE,
 }
 
 /**
@@ -35,6 +37,7 @@ data class ReconciliationDailySummary(
     val reconciledCount: Int,
     val discrepancyCount: Int,
     val pendingGraceCount: Int,
+    val noComparableEvidenceCount: Int,
     val washTestCount: Int,
     val estimatedWastedCostTenge: BigDecimal,
     val lisPricePerTestTenge: BigDecimal?,
@@ -44,6 +47,7 @@ data class ReconciliationDailySummary(
     val status: ReconciliationStatus get() = when {
         logsCount == 0                             -> ReconciliationStatus.NO_DATA
         discrepancyCount > 0                       -> ReconciliationStatus.DISCREPANCY
+        noComparableEvidenceCount > 0              -> ReconciliationStatus.NO_COMPARABLE_EVIDENCE
         pendingGraceCount > 0 && discrepancyCount == 0 -> ReconciliationStatus.PENDING_GRACE
         else                                       -> ReconciliationStatus.CLEAN
     }
@@ -60,7 +64,9 @@ data class ReconciliationKpiSummary(
     val totalReconciledCount: Int,
     val totalDiscrepancyCount: Int,
     val totalPendingGraceCount: Int,
+    val totalNoComparableEvidenceCount: Int,
     val totalWashTestCount: Int,
+    val exactDatedReferralLinkCount: Int,
     val totalWastedCostTenge: BigDecimal,
     val discrepancyRate: Double,        // discrepancyCount / logsCount %, [0..1]
     val analyzerCount: Int,
@@ -74,7 +80,18 @@ data class ReconciliationDailyPoint(
     val lisCount: Int,
     val discrepancyCount: Int,
     val pendingGraceCount: Int,
+    val noComparableEvidenceCount: Int,
     val wastedCostTenge: BigDecimal,
+)
+
+data class ReconciliationCoverageDay(
+    val date: LocalDate,
+    val analyzerId: String?,
+    val analyzerEventCount: Int,
+    val analyzerXmlSnapshotCount: Int,
+    val damumedFactCount: Int,
+    val comparisonStatus: String,
+    val explanation: String,
 )
 
 /** Per-analyzer summary for leaderboard widget. */
@@ -84,6 +101,7 @@ data class ReconciliationAnalyzerSummary(
     val logsCount: Int,
     val lisCount: Int,
     val discrepancyCount: Int,
+    val noComparableEvidenceCount: Int,
     val reconciledCount: Int,
     val discrepancyRate: Double,
     val wastedCostTenge: BigDecimal,
@@ -100,10 +118,19 @@ enum class SampleReconciliationStatus {
     DISCREPANCY,
     /** No LIS record YET but grace window has not expired (e.g. hepatitis ≤72h) */
     PENDING_GRACE,
+    /** No Damumed source fact covers this period; absence is not a discrepancy. */
+    NO_COMPARABLE_EVIDENCE,
     /** Technical cleaning/QC/blank — never billed, excluded from both logs and LIS counts */
     WASH_TEST,
     /** Re-run of a previously performed sample — does not consume NEW budget unit */
     RERUN,
+}
+
+enum class ComparisonAvailability {
+    COMPARABLE,
+    NO_DAMUMED_REPORT,
+    CONTEXTUAL_ANALYZER_SNAPSHOT,
+    UNKNOWN,
 }
 
 /** Per-sample reconciliation record (materialized from ParsedAnalyzerSample + catalog match). */
@@ -117,6 +144,8 @@ data class SampleReconciliation(
     val serviceNameCanonical: String?,
     val category: String?,
     val reconciliationStatus: SampleReconciliationStatus,
+    val comparisonAvailability: ComparisonAvailability = ComparisonAvailability.UNKNOWN,
+    val comparisonReason: String? = null,
     val reason: String?,
     val graceHours: Int,
     val graceDeadlineAt: LocalDateTime?,
@@ -138,6 +167,7 @@ data class ReconciliationServiceRow(
     val discrepancyCount: Int,
     val reconciledCount: Int,
     val pendingGraceCount: Int,
+    val noComparableEvidenceCount: Int,
     val discrepancyRate: Double,
     val wastedCostTenge: BigDecimal,
     val lisPricePerTestTenge: BigDecimal?,

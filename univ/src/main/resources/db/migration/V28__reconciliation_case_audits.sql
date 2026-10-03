@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS reconciliation_case_events (
     comment             TEXT,
     assigned_to         VARCHAR(255),
     changed_by          VARCHAR(255),
-    changed_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    changed_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    version             BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_reconciliation_case_events_case

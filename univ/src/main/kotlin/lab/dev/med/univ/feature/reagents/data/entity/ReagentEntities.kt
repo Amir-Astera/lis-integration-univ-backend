@@ -146,6 +146,7 @@ data class ParsedAnalyzerSampleEntity(
     val orderResearchId: Long? = null,
     val orderId: Long? = null,
     val serviceId: Int? = null,
+    val serviceCode: String? = null,
     val serviceName: String? = null,
     val hasLisOrder: Boolean,
     val sampleRequestCount: Int = 0,

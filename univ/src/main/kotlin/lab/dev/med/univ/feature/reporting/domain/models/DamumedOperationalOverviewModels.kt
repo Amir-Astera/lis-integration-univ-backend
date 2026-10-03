@@ -118,6 +118,19 @@ data class DamumedOperationalTatItem(
     val averageMinutes: Int,
     val averageDurationText: String,
     val count: Int,
+    val medianMinutes: Int = averageMinutes,
+    val p90Minutes: Int = averageMinutes,
+    val definition: String = "registration_or_receipt_to_result",
+    /**
+     * A short series cannot establish an operational tendency. It remains
+     * visible in detailed reports, but must not drive director-level alerts.
+     */
+    val reliableForTrend: Boolean = count >= 10,
+    /**
+     * Mean far above median usually indicates a small long-tail of delays.
+     * It is a prompt for careful review, not an operational conclusion.
+     */
+    val outlierSensitive: Boolean = medianMinutes > 0 && averageMinutes > medianMinutes * 3,
 )
 
 data class DamumedOperationalStockItem(

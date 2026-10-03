@@ -30,6 +30,7 @@ dependencies {
 	implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.flywaydb:flyway-core")
+	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("nl.martijndwars:web-push:5.1.1")
 	implementation("org.bouncycastle:bcprov-jdk15on:1.70")
 	implementation("org.apache.poi:poi:5.2.5")        // HSSF (.xls)

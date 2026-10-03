@@ -69,6 +69,8 @@ class ReconciliationCaseService(
                 category = reconciliation.category,
                 caseType = resolveCaseType(sample, reconciliation),
                 sourceStatus = sourceStatus(reconciliation),
+                comparisonAvailability = reconciliation.comparisonAvailability,
+                comparisonReason = reconciliation.comparisonReason,
                 workflowStatus = audit.workflowStatus,
                 conclusion = audit.conclusion,
                 assignedTo = audit.assignedTo,
@@ -87,7 +89,7 @@ class ReconciliationCaseService(
 
     suspend fun getCase(caseId: String): ReconciliationCaseDetailDto {
         val audit = auditRepository.findById(caseId)
-            ?: throw NoSuchElementException("Случай расследования не найден")
+            ?: throw NoSuchElementException("Случай сверки не найден")
         val reconciliation = sampleReconciliationRepository.findByParsedSampleId(audit.parsedSampleId)
             ?: throw IllegalArgumentException("Этот случай больше не требует автоматической сверки")
         val sample = parsedSampleRepository.findById(audit.parsedSampleId)
@@ -110,6 +112,8 @@ class ReconciliationCaseService(
             sourceType = upload?.sourceType?.name ?: "UNKNOWN",
             caseType = resolveCaseType(sample, reconciliation),
             sourceStatus = sourceStatus(reconciliation),
+            comparisonAvailability = reconciliation.comparisonAvailability,
+            comparisonReason = reconciliation.comparisonReason,
             reason = reconciliation.reason ?: sample.classificationReason,
             workflowStatus = audit.workflowStatus,
             conclusion = audit.conclusion,
@@ -130,7 +134,7 @@ class ReconciliationCaseService(
             "Недопустимый статус обработки случая"
         }
         val previous = auditRepository.findById(caseId)
-            ?: throw NoSuchElementException("Случай расследования не найден")
+            ?: throw NoSuchElementException("Случай сверки не найден")
         val sample = parsedSampleRepository.findById(previous.parsedSampleId)
             ?: throw NoSuchElementException("Исходная запись анализатора не найдена")
         val now = LocalDateTime.now()
@@ -250,10 +254,17 @@ class ReconciliationCaseService(
     }
 
     private fun sourceStatus(reconciliation: SampleReconciliationEntity): String =
-        when (reconciliation.reconciliationStatus) {
-            "PENDING_GRACE" -> "Источник ожидается"
-            "DISCREPANCY" -> "Требует проверки"
-            else -> "Подтверждено источниками"
+        when {
+            reconciliation.comparisonAvailability == "NO_DAMUMED_REPORT" ->
+                "Нет журнала Damumed за дату"
+            reconciliation.comparisonAvailability == "CONTEXTUAL_ANALYZER_SNAPSHOT" ->
+                "Контекстный снимок"
+            reconciliation.reconciliationStatus == "PENDING_GRACE" ->
+                "Источник ожидается"
+            reconciliation.reconciliationStatus == "DISCREPANCY" ->
+                "Требует проверки"
+            else ->
+                "Подтверждено источниками"
         }
 
     private fun displayBarcode(barcode: String): String =

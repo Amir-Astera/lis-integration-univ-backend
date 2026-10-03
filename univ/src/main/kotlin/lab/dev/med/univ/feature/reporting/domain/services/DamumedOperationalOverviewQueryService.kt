@@ -41,8 +41,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.time.temporal.WeekFields
-import java.util.Locale
 import kotlin.math.roundToInt
 
 interface DamumedOperationalOverviewQueryService {
@@ -88,8 +86,20 @@ class DamumedOperationalOverviewQueryServiceImpl(
         }
         val latestUpload = uploads.firstOrNull()
         val latestRelevantUpload = relevantNormalizedUploads.maxByOrNull { it.uploadedAt }
-        val referenceDate = latestRelevantUpload?.uploadedAt?.toLocalDate() ?: latestUpload?.uploadedAt?.toLocalDate() ?: LocalDate.now()
-        val allFacts = relevantNormalizedUploads.flatMap { upload ->
+        val uploadReferenceDate = latestRelevantUpload?.uploadedAt?.toLocalDate()
+            ?: latestUpload?.uploadedAt?.toLocalDate()
+            ?: LocalDate.now()
+        /*
+         * Completed-studies reports are large tabular extracts (tens of thousands
+         * of facts and millions of dimensions). Their aggregate workplace view is
+         * loaded below through its dedicated processed-view use case. Loading their
+         * raw dimensions into this overview duplicates that work and exhausts the
+         * JVM heap before any dashboard response is returned.
+         */
+        val dashboardRawUploads = relevantNormalizedUploads.filter { upload ->
+            upload.reportKind in DASHBOARD_RAW_REPORT_KINDS
+        }
+        val allFacts = dashboardRawUploads.flatMap { upload ->
             factRepository.findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(upload.id).toList()
         }
         val allFactIds = allFacts.map { it.entityId }
@@ -115,6 +125,11 @@ class DamumedOperationalOverviewQueryServiceImpl(
         val rejectFacts = factEnvelopes.filter { it.fact.reportKind == DamumedLabReportKind.REJECT_LOG }
         val workplaceFacts = factEnvelopes.filter { it.fact.reportKind == DamumedLabReportKind.WORKPLACE_COMPLETED_STUDIES }
         val referralJournalFacts = factEnvelopes.filter { it.fact.reportKind == DamumedLabReportKind.REFERRAL_REGISTRATION_JOURNAL }
+        val referenceDate = referralJournalFacts
+            .mapNotNull(::referralJournalRow)
+            .map { it.businessDate }
+            .maxOrNull()
+            ?: uploadReferenceDate
         
         val latestWorkplaceUpload = normalizedUploads
             .filter { it.reportKind == DamumedLabReportKind.WORKPLACE_COMPLETED_STUDIES }
@@ -610,16 +625,26 @@ class DamumedOperationalOverviewQueryServiceImpl(
             }
             .groupBy { it.service }
             .map { (service, items) ->
-                val averageMinutes = items.map { it.minutes }.average().roundToInt()
+                val durations = items.map { it.minutes }.sorted()
+                val averageMinutes = durations.average().roundToInt()
                 DamumedOperationalTatItem(
                     service = service,
                     averageMinutes = averageMinutes,
                     averageDurationText = formatTatDuration(averageMinutes),
-                    count = items.size,
+                    count = durations.size,
+                    medianMinutes = percentileMinutes(durations, 0.50),
+                    p90Minutes = percentileMinutes(durations, 0.90),
                 )
             }
             .sortedByDescending { it.averageMinutes }
             .take(8)
+    }
+
+    private fun percentileMinutes(sortedMinutes: List<Long>, percentile: Double): Int {
+        if (sortedMinutes.isEmpty()) return 0
+        val index = kotlin.math.ceil(percentile * sortedMinutes.size).toInt()
+            .coerceIn(1, sortedMinutes.size) - 1
+        return sortedMinutes[index].toInt()
     }
 
     private fun formatTatDuration(totalMinutes: Int): String {
@@ -665,7 +690,7 @@ class DamumedOperationalOverviewQueryServiceImpl(
 
     private fun extractBusinessDate(envelope: FactEnvelope): LocalDate? {
         val directDate = envelope.dimensions.firstOrNull { dimension ->
-            dimension.axisKey == "completed_at" || dimension.axisKey == "received_at" || dimension.axisKey == "birth_date"
+            dimension.axisKey == "completed_at" || dimension.axisKey == "received_at"
         }?.rawValue
         parseDamumedDateTime(directDate)?.let { return it.toLocalDate() }
         return parsePeriodDate(directDate) ?: parsePeriodDate(envelope.fact.periodText)
@@ -700,11 +725,12 @@ class DamumedOperationalOverviewQueryServiceImpl(
         return when (periodMode) {
             PeriodMode.DAY -> date == referenceDate
             PeriodMode.WEEK -> {
-                val weekFields = WeekFields.of(Locale.getDefault())
-                date.get(weekFields.weekOfWeekBasedYear()) == referenceDate.get(weekFields.weekOfWeekBasedYear()) &&
-                    date.year == referenceDate.year
+                val monday = referenceDate.minusDays((referenceDate.dayOfWeek.value - 1).toLong())
+                date in monday..referenceDate
             }
-            PeriodMode.MONTH -> date.month == referenceDate.month && date.year == referenceDate.year
+            PeriodMode.MONTH -> date.year == referenceDate.year &&
+                date.month == referenceDate.month &&
+                !date.isAfter(referenceDate)
         }
     }
 
@@ -781,6 +807,11 @@ class DamumedOperationalOverviewQueryServiceImpl(
 
     private companion object {
         private const val FACT_DIMENSION_QUERY_BATCH_SIZE = 250
+        private val DASHBOARD_RAW_REPORT_KINDS = setOf(
+            DamumedLabReportKind.REFERRAL_REGISTRATION_JOURNAL,
+            DamumedLabReportKind.REFERRAL_COUNT_BY_MATERIAL,
+            DamumedLabReportKind.REJECT_LOG,
+        )
         const val OPERATIONAL_OVERVIEW_SNAPSHOT_KEY = "damumed-operational-overview"
         val DATE_REGEX = Regex("\\d{2}\\.\\d{2}\\.\\d{4}")
     }

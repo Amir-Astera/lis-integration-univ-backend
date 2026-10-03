@@ -9,6 +9,7 @@ import lab.dev.med.univ.feature.reagents.domain.services.ReconciliationCaseServi
 import lab.dev.med.univ.feature.reagents.domain.services.ReconciliationSummaryService
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationCaseDetailDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationCasePageDto
+import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationCoverageDayDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.DrillDownPageDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationAnalyzerSummaryDto
 import lab.dev.med.univ.feature.reagents.presentation.dto.ReconciliationDailyPointDto
@@ -91,6 +92,35 @@ class ReconciliationDashboardController(
             val points = reconciliationSummaryService.getDailyTimeline(from, to, analyzerId)
                 .map { it.toDto() }
             ResponseEntity.ok(points)
+        } catch (ex: Exception) {
+            val (code, message) = getError(ex)
+            throw ResponseStatusException(code, message, ex)
+        }
+    }
+
+    @GetMapping("/coverage")
+    @Operation(summary = "Source coverage matrix for analyzer logs and Damumed journals")
+    suspend fun getCoverage(
+        @RequestParam(required = false) dateFrom: LocalDate?,
+        @RequestParam(required = false) dateTo: LocalDate?,
+        @RequestParam(required = false) analyzerId: String?,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<List<ReconciliationCoverageDayDto>> {
+        return try {
+            val (from, to) = resolvePeriod(dateFrom, dateTo)
+            val coverage = reconciliationSummaryService.getCoverage(from, to, analyzerId)
+                .map {
+                    ReconciliationCoverageDayDto(
+                        date = it.date,
+                        analyzerId = it.analyzerId,
+                        analyzerEventCount = it.analyzerEventCount,
+                        analyzerXmlSnapshotCount = it.analyzerXmlSnapshotCount,
+                        damumedFactCount = it.damumedFactCount,
+                        comparisonStatus = it.comparisonStatus,
+                        explanation = it.explanation,
+                    )
+                }
+            ResponseEntity.ok(coverage)
         } catch (ex: Exception) {
             val (code, message) = getError(ex)
             throw ResponseStatusException(code, message, ex)

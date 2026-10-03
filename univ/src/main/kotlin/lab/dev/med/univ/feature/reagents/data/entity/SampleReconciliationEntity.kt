@@ -2,6 +2,7 @@ package lab.dev.med.univ.feature.reagents.data.entity
 
 import lab.dev.med.univ.feature.reagents.domain.models.SampleReconciliation
 import lab.dev.med.univ.feature.reagents.domain.models.SampleReconciliationStatus
+import lab.dev.med.univ.feature.reagents.domain.models.ComparisonAvailability
 import lab.dev.med.univ.feature.reagents.domain.models.ServiceMatchConfidence
 import org.springframework.data.annotation.Id
 import org.springframework.data.annotation.Version
@@ -21,6 +22,8 @@ data class SampleReconciliationEntity(
     val serviceNameCanonical: String? = null,
     val category: String? = null,
     val reconciliationStatus: String,
+    val comparisonAvailability: String = "UNKNOWN",
+    val comparisonReason: String? = null,
     val reason: String? = null,
     val graceHours: Int = 0,
     val graceDeadlineAt: LocalDateTime? = null,
@@ -42,7 +45,10 @@ fun SampleReconciliationEntity.toModel() = SampleReconciliation(
     serviceNameCanonical  = serviceNameCanonical,
     category              = category,
     reconciliationStatus  = runCatching { SampleReconciliationStatus.valueOf(reconciliationStatus) }
-        .getOrDefault(SampleReconciliationStatus.DISCREPANCY),
+        .getOrDefault(SampleReconciliationStatus.NO_COMPARABLE_EVIDENCE),
+    comparisonAvailability = runCatching { ComparisonAvailability.valueOf(comparisonAvailability) }
+        .getOrDefault(ComparisonAvailability.UNKNOWN),
+    comparisonReason = comparisonReason,
     reason                = reason,
     graceHours            = graceHours,
     graceDeadlineAt       = graceDeadlineAt,
@@ -66,6 +72,8 @@ fun SampleReconciliation.toEntity() = SampleReconciliationEntity(
     serviceNameCanonical  = serviceNameCanonical,
     category              = category,
     reconciliationStatus  = reconciliationStatus.name,
+    comparisonAvailability = comparisonAvailability.name,
+    comparisonReason = comparisonReason,
     reason                = reason,
     graceHours            = graceHours,
     graceDeadlineAt       = graceDeadlineAt,

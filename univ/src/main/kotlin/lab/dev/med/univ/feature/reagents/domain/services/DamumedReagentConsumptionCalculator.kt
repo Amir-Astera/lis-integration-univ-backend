@@ -2,6 +2,7 @@ package lab.dev.med.univ.feature.reagents.domain.services
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.reactor.awaitSingle
 import lab.dev.med.univ.feature.reporting.data.entity.toModel
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedNormalizedFactRepository
 import lab.dev.med.univ.feature.reporting.data.repository.DamumedReportUploadRepository
@@ -24,6 +25,7 @@ import lab.dev.med.univ.feature.reagents.domain.models.ReagentSummary
 import lab.dev.med.univ.feature.reagents.domain.models.ReagentUnitType
 import lab.dev.med.univ.feature.reporting.data.entity.DamumedNormalizedFactEntity
 import org.springframework.stereotype.Service
+import org.springframework.r2dbc.core.DatabaseClient
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.UUID
@@ -58,6 +60,7 @@ internal class DamumedReagentConsumptionCalculatorImpl(
     private val inventoryRepository: ReagentInventoryRepository,
     private val mappingQueryService: ServiceToAnalyzerMappingQueryService,
     private val consumptionRepository: DamumedReportReagentConsumptionRepository,
+    private val databaseClient: DatabaseClient,
 ) : DamumedReagentConsumptionCalculator {
 
     override suspend fun calculate(request: CalculateDamumedConsumptionRequest): DamumedConsumptionCalculationResult {
@@ -74,6 +77,10 @@ internal class DamumedReagentConsumptionCalculatorImpl(
 
         // Clear existing calculations for this upload
         consumptionRepository.deleteAllByUploadId(request.uploadId)
+
+        if (upload.reportKind == DamumedLabReportKind.COMPLETED_LAB_STUDIES_JOURNAL) {
+            return calculateCompletedJournalConsumption(request)
+        }
 
         // Get all facts for this upload that represent completed services
         val facts = factRepository.findAllByUploadIdOrderBySheetIdAscSourceRowIndexAscSourceColumnIndexAsc(request.uploadId)
@@ -164,6 +171,129 @@ internal class DamumedReagentConsumptionCalculatorImpl(
         )
     }
 
+    /**
+     * In a completed-studies journal, each fact is one performed study and
+     * the service resides in the `service` dimension. Loading only numeric
+     * facts here silently produces no consumption, so aggregate on PostgreSQL
+     * first and persist one transparent calculated row per source service.
+     */
+    private suspend fun calculateCompletedJournalConsumption(
+        request: CalculateDamumedConsumptionRequest,
+    ): DamumedConsumptionCalculationResult {
+        val counts = loadCompletedJournalServiceCounts(request.uploadId)
+        val activeNorms = normRepository.findAllByIsActiveTrueOrderByServiceNameAsc()
+            .toList()
+            .map { it.toModel() }
+            .groupBy { it.serviceNameNormalized }
+        val activeMappings = mappingQueryService.getActive()
+
+        val results = mutableListOf<DamumedReportReagentConsumption>()
+        val unmappedServices = mutableSetOf<String>()
+        var totalEntries = 0
+        var totalCost = BigDecimal.ZERO
+
+        for ((serviceName, completedCount) in counts) {
+            val normalizedName = normalizeServiceName(serviceName)
+            val norms = activeNorms[normalizedName].orEmpty()
+            if (norms.isEmpty()) {
+                unmappedServices += serviceName
+                continue
+            }
+
+            val category = norms.firstNotNullOfOrNull { it.serviceCategory }
+            if (request.serviceCategoryFilter != null && category !in request.serviceCategoryFilter) {
+                continue
+            }
+
+            val mapping = findExactOrPatternMapping(activeMappings, serviceName, category)
+            val analyzerId = request.overrideAnalyzerMappings?.get(serviceName)
+                ?: mapping?.analyzerId
+                ?: norms.firstNotNullOfOrNull { it.analyzerId }
+            val confidence = when {
+                request.overrideAnalyzerMappings?.containsKey(serviceName) == true -> DetectionConfidence.MANUAL
+                mapping != null -> DetectionConfidence.HIGH
+                analyzerId != null -> DetectionConfidence.MEDIUM
+                else -> DetectionConfidence.LOW
+            }
+            val consumptionEntries = norms.map { norm ->
+                val totalQuantity = norm.calculateTotalQuantity(completedCount)
+                val unitCost = getUnitCost(norm.reagentName, norm.unitType)
+                ConsumptionEntry(
+                    reagentName = norm.reagentName,
+                    quantity = totalQuantity,
+                    unitType = norm.unitType,
+                    unitCostTenge = unitCost,
+                    totalCostTenge = unitCost?.multiply(totalQuantity),
+                    sourceNormId = norm.id,
+                )
+            }
+            val serviceTotalCost = consumptionEntries.sumOf { it.totalCostTenge ?: BigDecimal.ZERO }
+            totalEntries += consumptionEntries.size
+            totalCost = totalCost.add(serviceTotalCost)
+            val consumption = DamumedReportReagentConsumption(
+                id = UUID.randomUUID().toString(),
+                uploadId = request.uploadId,
+                factId = null,
+                serviceName = serviceName,
+                serviceCategory = category,
+                completedCount = completedCount,
+                consumptionEntries = consumptionEntries,
+                totalEstimatedCostTenge = serviceTotalCost,
+                detectedAnalyzerId = analyzerId,
+                detectionConfidence = confidence,
+                calculatedAt = LocalDateTime.now(),
+                calculatedBy = "system",
+            )
+            results += consumption
+            consumptionRepository.save(consumption.toEntity())
+        }
+
+        return DamumedConsumptionCalculationResult(
+            uploadId = request.uploadId,
+            totalServicesProcessed = results.size,
+            totalConsumptionEntries = totalEntries,
+            totalEstimatedCostTenge = totalCost,
+            byCategory = buildCategorySummary(results),
+            unmappedServices = unmappedServices.toList().sorted(),
+        )
+    }
+
+    private suspend fun loadCompletedJournalServiceCounts(uploadId: String): List<Pair<String, Int>> {
+        val sql = """
+            SELECT TRIM(d.raw_value) AS service_name,
+                   COUNT(*) AS completed_count
+            FROM damumed_report_normalized_facts f
+            INNER JOIN damumed_report_normalized_fact_dimensions d
+                ON d.fact_id = f.id
+               AND d.axis_key = 'service'
+            WHERE f.upload_id = :uploadId
+              AND d.raw_value IS NOT NULL
+              AND TRIM(d.raw_value) <> ''
+            GROUP BY TRIM(d.raw_value)
+            ORDER BY completed_count DESC, service_name ASC
+        """.trimIndent()
+        return databaseClient.sql(sql)
+            .bind("uploadId", uploadId)
+            .map { row, _ ->
+                val serviceName = row.get("service_name", String::class.java).orEmpty()
+                val completedCount = (row.get("completed_count", Number::class.java) ?: 0).toInt()
+                serviceName to completedCount
+            }
+            .all()
+            .collectList()
+            .awaitSingle()
+            .filter { (serviceName, completedCount) -> serviceName.isNotBlank() && completedCount > 0 }
+    }
+
+    private fun findExactOrPatternMapping(
+        mappings: List<lab.dev.med.univ.feature.reagents.domain.models.ServiceToAnalyzerMapping>,
+        serviceName: String,
+        category: String?,
+    ) = mappings.firstOrNull {
+        it.serviceNamePattern.equals(serviceName, ignoreCase = true) &&
+            (category == null || it.serviceCategory == category)
+    } ?: mappings.firstOrNull { it.matches(serviceName) }
+
     override suspend fun getCalculatedConsumption(uploadId: String): List<DamumedReportReagentConsumption> {
         return consumptionRepository.findAllByUploadIdOrderByCalculatedAtDesc(uploadId)
             .toList()
@@ -237,13 +367,21 @@ internal class DamumedReagentConsumptionCalculatorImpl(
     }
 
     private suspend fun getUnitCost(reagentName: String, unitType: ReagentUnitType): BigDecimal? {
-        // Get latest inventory price for this reagent
+        // `unitPriceTenge` is the procurement price of the received kit, not
+        // necessarily the price of one mL/test. Convert it only when the
+        // package capacity is recorded; otherwise omit cost rather than
+        // creating a misleading monetary estimate.
         val inventory = inventoryRepository.findAllByOrderByReceivedAtDescCreatedAtDesc()
             .toList()
             .filter { it.reagentName.equals(reagentName, ignoreCase = true) && it.unitType == unitType }
             .maxByOrNull { it.receivedAt }
 
-        return inventory?.unitPriceTenge?.let { BigDecimal(it) }
+        return ReagentPackagePriceResolver.resolveUnitCost(
+            packagePrice = inventory?.unitPriceTenge,
+            unitType = unitType,
+            totalVolumeMl = inventory?.totalVolumeMl,
+            totalUnits = inventory?.totalUnits,
+        )
     }
 
     private fun buildCategorySummary(

@@ -1,25 +1,32 @@
 package lab.dev.med.univ.feature.reagents.domain.services
 
 import kotlinx.coroutines.flow.toList
+import lab.dev.med.univ.feature.reagents.data.entity.ReconciliationSourceCoverageEntity
 import lab.dev.med.univ.feature.reagents.data.entity.ReconciliationSummaryEntity
 import lab.dev.med.univ.feature.reagents.data.entity.SampleReconciliationEntity
 import lab.dev.med.univ.feature.reagents.data.entity.toModel
+import lab.dev.med.univ.feature.reagents.data.repository.AnalyzerLogUploadRepository
 import lab.dev.med.univ.feature.reagents.data.repository.AnalyzerRepository
 import lab.dev.med.univ.feature.reagents.data.repository.ParsedAnalyzerSampleRepository
+import lab.dev.med.univ.feature.reagents.data.repository.ReconciliationSourceCoverageRepository
 import lab.dev.med.univ.feature.reagents.data.repository.ReconciliationSummaryRepository
 import lab.dev.med.univ.feature.reagents.data.repository.SampleReconciliationRepository
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationAnalyzerSummary
+import lab.dev.med.univ.feature.reagents.domain.models.ComparisonAvailability
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationDailySummary
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationDailyPoint
+import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationCoverageDay
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationKpiSummary
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationServiceRow
 import lab.dev.med.univ.feature.reagents.domain.models.ReconciliationStatus
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
+import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogSourceType
 import lab.dev.med.univ.feature.reagents.domain.models.SampleReconciliation
 import lab.dev.med.univ.feature.reagents.domain.models.SampleReconciliationStatus
 import lab.dev.med.univ.feature.reagents.domain.models.ServiceCatalogEntry
 import lab.dev.med.univ.feature.reagents.domain.models.ServiceMatchConfidence
 import lab.dev.med.univ.feature.reporting.data.repository.CompletedLabStudiesJournalReferralIndexRepository
+import lab.dev.med.univ.feature.reporting.domain.JournalAxisTextNormalization
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -41,6 +48,9 @@ interface ReconciliationSummaryService {
 
     /** Daily trend points for time-series chart. */
     suspend fun getDailyTimeline(dateFrom: LocalDate, dateTo: LocalDate, analyzerId: String? = null): List<ReconciliationDailyPoint>
+
+    /** Coverage matrix used to decide whether a date is comparable at all. */
+    suspend fun getCoverage(dateFrom: LocalDate, dateTo: LocalDate, analyzerId: String? = null): List<ReconciliationCoverageDay>
 
     /** Per-analyzer leaderboard. */
     suspend fun getByAnalyzer(dateFrom: LocalDate, dateTo: LocalDate): List<ReconciliationAnalyzerSummary>
@@ -91,6 +101,8 @@ class ReconciliationSummaryServiceImpl(
     private val journalIndexRepository: CompletedLabStudiesJournalReferralIndexRepository,
     private val reconciliationRepository: ReconciliationSummaryRepository,
     private val sampleReconciliationRepository: SampleReconciliationRepository,
+    private val sourceCoverageRepository: ReconciliationSourceCoverageRepository,
+    private val analyzerLogUploadRepository: AnalyzerLogUploadRepository,
     private val analyzerRepository: AnalyzerRepository,
     private val serviceMatchingService: ServiceMatchingService,
 ) : ReconciliationSummaryService {
@@ -115,9 +127,58 @@ class ReconciliationSummaryServiceImpl(
             parsedSampleRepository.findAllBySampleTimestampBetweenOrderBySampleTimestampAsc(startTs, endTs)
         }.toList()
 
+        val damumedCoverage = journalIndexRepository.loadCoverageByDateRange(dateFrom, dateTo)
+        val damumedReferralKeysByDate = journalIndexRepository.loadReferralKeysByDateRange(dateFrom, dateTo)
+        val damumedReferralServicesByDate = journalIndexRepository.loadDatedReferralServiceCandidates(dateFrom, dateTo)
+        sourceCoverageRepository.deleteDamumedCoverage(dateFrom, dateTo)
+        if (damumedCoverage.isNotEmpty()) {
+            sourceCoverageRepository.saveAll(
+                damumedCoverage.map { coverage ->
+                    ReconciliationSourceCoverageEntity(
+                        id = UUID.randomUUID().toString(),
+                        coverageDate = coverage.coverageDate,
+                        sourceKind = "DAMUMED_COMPLETED_JOURNAL",
+                        sourceUploadId = coverage.uploadId,
+                        factCount = coverage.factCount,
+                        coverageQuality = "DATED_JOURNAL_FACTS",
+                        coverageReason = "Журнал выполненных исследований содержит датированные факты за дату.",
+                    )
+                },
+            ).toList()
+        }
+
+        sourceCoverageRepository.deleteAnalyzerCoverage(dateFrom, dateTo, analyzerId)
+        val uploadsById = samples.map { it.logUploadId }.distinct().associateWith { uploadId ->
+            analyzerLogUploadRepository.findById(uploadId)
+        }
+        val analyzerCoverage = samples
+            .groupBy { Triple(it.sampleTimestamp.toLocalDate(), it.analyzerId, it.logUploadId) }
+            .mapNotNull { (key, rows) ->
+                val upload = uploadsById[key.third] ?: return@mapNotNull null
+                val sourceType = upload.sourceType
+                ReconciliationSourceCoverageEntity(
+                    id = UUID.randomUUID().toString(),
+                    coverageDate = key.first,
+                    analyzerId = key.second,
+                    sourceKind = if (sourceType == AnalyzerLogSourceType.APPLOGS) "ANALYZER_APPLOG" else "ANALYZER_XML_SNAPSHOT",
+                    sourceUploadId = upload.id,
+                    factCount = rows.size,
+                    coverageQuality = if (sourceType == AnalyzerLogSourceType.APPLOGS) "VERIFIED_EVENT_LOG" else "CONTEXTUAL",
+                    coverageReason = if (sourceType == AnalyzerLogSourceType.APPLOGS) {
+                        "В журнале анализатора есть датированные события за дату."
+                    } else {
+                        "errors.xml является контекстным снимком и не покрывает временную шкалу."
+                    },
+                )
+            }
+        if (analyzerCoverage.isNotEmpty()) {
+            sourceCoverageRepository.saveAll(analyzerCoverage).toList()
+        }
+
         if (samples.isEmpty()) {
             log.debug("No samples found for period {} – {}; clearing existing rows only", dateFrom, dateTo)
             deleteExistingRows(dateFrom, dateTo, analyzerId)
+            sampleReconciliationRepository.deleteByDateRangeAndAnalyzer(dateFrom, dateTo, analyzerId)
             return
         }
 
@@ -128,6 +189,13 @@ class ReconciliationSummaryServiceImpl(
             log.warn("Failed to load LIS service stats for {} – {}: {}", dateFrom, dateTo, ex.message)
             emptyMap()
         }
+        /*
+         * Coverage is a day-level condition. A journal row without a verified
+         * completed_at date must not silently cover every analyzer period.
+         */
+        val damumedCoverageByDate = damumedCoverage
+            .groupBy { it.coverageDate }
+            .mapValues { (_, rows) -> rows.sumOf { it.factCount } > 0 }
 
         // Precompute once: catalogId → total LIS count across the period.
         // Only matches at or stronger than BY_LIS_ALIAS are trusted for the LIS↔logs join
@@ -154,8 +222,8 @@ class ReconciliationSummaryServiceImpl(
             val sampleDate = sample.sampleTimestamp.toLocalDate()
             val effectiveAnalyzerId = sample.analyzerId
 
-            // Find catalog entry: try service_id first, then service_name
-            val matchResult = when {
+            // Find catalog entry from analyzer-provided service data first.
+            val analyzerMatchResult = when {
                 sample.serviceId != null -> {
                     val byId = serviceMatchingService.matchByServiceId(sample.serviceId)
                     if (byId.isMatch) byId else serviceMatchingService.matchByName(sample.serviceName.orEmpty())
@@ -164,16 +232,50 @@ class ReconciliationSummaryServiceImpl(
                 else -> null
             }
 
+            val matchedReferralKey = JournalAxisTextNormalization.normalizeReferral(sample.barcode)
+                .takeIf { referralKey ->
+                    referralKey.isNotBlank() && referralKey in damumedReferralKeysByDate[sampleDate].orEmpty()
+                }
+            val singleReferralService = matchedReferralKey
+                ?.let { referralKey -> damumedReferralServicesByDate[sampleDate]?.get(referralKey) }
+                ?.singleOrNull()
+            /*
+             * When the analyzer has not provided a service identifier but the
+             * same dated Damumed referral contains exactly one service, this
+             * is a defensible service candidate. It is explicitly labelled as
+             * referral-derived evidence, never as an analyzer service ID.
+             */
+            val referralDerivedService = analyzerMatchResult?.isMatch != true && singleReferralService != null
+            val matchResult = if (analyzerMatchResult?.isMatch == true) {
+                analyzerMatchResult
+            } else {
+                singleReferralService?.let { serviceMatchingService.matchByName(it) }
+            }
             val catalogEntry   = matchResult?.entry
             val catalogId      = catalogEntry?.id ?: UNKNOWN_CATALOG_KEY
-            val rawServiceName = sample.serviceName.orEmpty().ifBlank { catalogEntry?.canonicalName ?: "Неизвестно" }
+            val rawServiceName = sample.serviceName.orEmpty().ifBlank {
+                singleReferralService ?: catalogEntry?.canonicalName ?: "Неизвестно"
+            }
             val graceHours     = catalogEntry?.graceHours ?: 0
+            // A dated Applogs event with the exact Damumed referral is a
+            // positive source match, even if its initial parser heuristic
+            // marked it suspicious. errors.xml remains contextual because it
+            // lacks the per-sample event timestamp needed for this proof.
+            val effectiveClassification = if (
+                matchedReferralKey != null && sample.classification != SampleClassification.XML_RESULT
+            ) {
+                SampleClassification.LEGITIMATE
+            } else {
+                sample.classification
+            }
 
             val sampleRow = SampleRow(
-                classification   = sample.classification,
+                classification   = effectiveClassification,
                 sampleTimestamp  = sample.sampleTimestamp,
                 graceHours       = graceHours,
                 now              = now,
+                hasComparableDamumedFacts = damumedCoverageByDate[sampleDate] == true,
+                isContextualSnapshot = sample.classification == SampleClassification.XML_RESULT,
             )
 
             val key = GroupKey(sampleDate, effectiveAnalyzerId, catalogId, catalogEntry, rawServiceName)
@@ -181,6 +283,7 @@ class ReconciliationSummaryServiceImpl(
 
             // ── Per-sample reconciliation row ──────────────────────────────
             val perSampleStatus = resolveSampleStatus(sampleRow)
+            val comparisonAvailability = sampleRow.comparisonAvailability
             val graceDeadline   = if (graceHours > 0) sample.sampleTimestamp.plusHours(graceHours.toLong()) else null
             val lisPrice        = catalogEntry?.lisPriceTenge
             val waste           = if (perSampleStatus == SampleReconciliationStatus.DISCREPANCY && lisPrice != null) lisPrice else BigDecimal.ZERO
@@ -195,13 +298,32 @@ class ReconciliationSummaryServiceImpl(
                 serviceNameCanonical  = catalogEntry?.canonicalName,
                 category              = catalogEntry?.category?.name,
                 reconciliationStatus  = perSampleStatus.name,
-                reason                = sample.classificationReason,
+                comparisonAvailability = comparisonAvailability.name,
+                comparisonReason = when {
+                    referralDerivedService ->
+                        "Точное совпадение штрих-кода, направления и даты; в направлении одна услуга Damumed: $singleReferralService."
+                    matchedReferralKey != null ->
+                    "Точное совпадение штрих-кода с номером направления Damumed в дату выполнения."
+                    else -> sampleRow.comparisonReason
+                },
+                reason                = when {
+                    referralDerivedService ->
+                        "Подтверждено Damumed: совпали штрих-код, направление и дата; единственная услуга направления использована как кандидат."
+                    matchedReferralKey != null ->
+                        "Подтверждено Damumed: совпали штрих-код, номер направления и дата выполнения."
+                    perSampleStatus == SampleReconciliationStatus.NO_COMPARABLE_EVIDENCE &&
+                        sample.classification == SampleClassification.XML_RESULT ->
+                        "XML-снимок без надёжного времени: контекстный источник, не участвует в сверке."
+                    perSampleStatus == SampleReconciliationStatus.NO_COMPARABLE_EVIDENCE ->
+                        "За дату ${sampleDate} нет сопоставимых датированных фактов Damumed; отсутствие записи не является расхождением."
+                    else -> sample.classificationReason
+                },
                 graceHours            = graceHours,
                 graceDeadlineAt       = graceDeadline,
-                matchConfidence       = matchResult?.confidence?.name,
+                matchConfidence       = if (referralDerivedService) null else matchResult?.confidence?.name,
                 lisPricePerTestTenge  = lisPrice,
                 estimatedWasteTenge   = waste,
-                lisReferralKey        = null,
+                lisReferralKey        = matchedReferralKey,
                 reconciledAt          = now,
             )
         }
@@ -219,9 +341,12 @@ class ReconciliationSummaryServiceImpl(
         val entitiesToSave = grouped.map { (key, sampleRows) ->
             val logsCount       = sampleRows.count { !it.isWashTest }
             val washTestCount   = sampleRows.count { it.isWashTest }
-            val reconciledCount = sampleRows.count { it.isReconciled }
-            val pendingGrace    = sampleRows.count { !it.isReconciled && !it.isWashTest && it.isInGraceWindow }
-            val discrepancy     = maxOf(0, logsCount - reconciledCount - pendingGrace)
+            val reconciledCount = sampleRows.count { it.isReconciled && !it.hasNoComparableEvidence }
+            val pendingGrace    = sampleRows.count {
+                !it.isReconciled && !it.isWashTest && !it.hasNoComparableEvidence && it.isInGraceWindow
+            }
+            val noComparableEvidence = sampleRows.count { it.hasNoComparableEvidence }
+            val discrepancy     = maxOf(0, logsCount - reconciledCount - pendingGrace - noComparableEvidence)
 
             val lisCount = key.catalogEntry?.id?.let { catId ->
                 if (lisCountConsumed.add(catId)) lisCountByCatalogId[catId] ?: 0 else 0
@@ -246,6 +371,7 @@ class ReconciliationSummaryServiceImpl(
                 reconciledCount          = reconciledCount,
                 discrepancyCount         = discrepancy,
                 pendingGraceCount        = pendingGrace,
+                noComparableEvidenceCount = noComparableEvidence,
                 washTestCount            = washTestCount,
                 estimatedWastedCostTenge = wastedCost,
                 lisPricePerTestTenge     = lisPrice,
@@ -271,8 +397,13 @@ class ReconciliationSummaryServiceImpl(
         val totalReconciled  = rows.sumOf { it.reconciledCount }
         val totalDiscrep     = rows.sumOf { it.discrepancyCount }
         val totalGrace       = rows.sumOf { it.pendingGraceCount }
+        val totalNoComparableEvidence = rows.sumOf { it.noComparableEvidenceCount }
         val totalWash        = rows.sumOf { it.washTestCount }
         val totalWasted      = rows.fold(BigDecimal.ZERO) { acc, r -> acc + r.estimatedWastedCostTenge }
+        val exactDatedReferralLinks = sampleReconciliationRepository
+            .countExactDatedReferralLinks(dateFrom, dateTo, analyzerId)
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
 
         val analyzerIds = rows.mapNotNull { it.analyzerId }.toSet()
         val affectedServices = rows.filter { it.discrepancyCount > 0 }.map { it.serviceNameCanonical }.toSet()
@@ -285,7 +416,9 @@ class ReconciliationSummaryServiceImpl(
             totalReconciledCount = totalReconciled,
             totalDiscrepancyCount = totalDiscrep,
             totalPendingGraceCount = totalGrace,
+            totalNoComparableEvidenceCount = totalNoComparableEvidence,
             totalWashTestCount   = totalWash,
+            exactDatedReferralLinkCount = exactDatedReferralLinks,
             totalWastedCostTenge = totalWasted,
             discrepancyRate      = if (totalLogs > 0) totalDiscrep.toDouble() / totalLogs else 0.0,
             analyzerCount        = analyzerIds.size,
@@ -303,9 +436,61 @@ class ReconciliationSummaryServiceImpl(
                     lisCount          = entity.lisCount,
                     discrepancyCount  = entity.discrepancyCount,
                     pendingGraceCount = entity.pendingGraceCount,
+                    noComparableEvidenceCount = entity.noComparableEvidenceCount,
                     wastedCostTenge   = entity.estimatedWastedCostTenge,
                 )
             }
+    }
+
+    override suspend fun getCoverage(
+        dateFrom: LocalDate,
+        dateTo: LocalDate,
+        analyzerId: String?,
+    ): List<ReconciliationCoverageDay> {
+        val coverage = sourceCoverageRepository.findAllByCoverageDateBetweenOrderByCoverageDateAsc(dateFrom, dateTo).toList()
+        val dates = generateSequence(dateFrom) { date -> date.plusDays(1).takeIf { !it.isAfter(dateTo) } }.toList()
+        val analyzerIds = if (analyzerId != null) listOf(analyzerId) else {
+            coverage.mapNotNull { it.analyzerId }.distinct().ifEmpty { listOf<String?>(null) }
+        }
+
+        return analyzerIds.flatMap { effectiveAnalyzerId ->
+            dates.map { date ->
+                val rows = coverage.filter { row ->
+                    row.coverageDate == date &&
+                        (row.analyzerId == effectiveAnalyzerId || row.analyzerId == null)
+                }
+                val analyzerEvents = rows
+                    .filter { it.analyzerId == effectiveAnalyzerId && it.sourceKind == "ANALYZER_APPLOG" }
+                    .sumOf { it.factCount }
+                val xmlSnapshots = rows
+                    .filter { it.analyzerId == effectiveAnalyzerId && it.sourceKind == "ANALYZER_XML_SNAPSHOT" }
+                    .sumOf { it.factCount }
+                val damumedFacts = rows
+                    .filter { it.analyzerId == null && it.sourceKind == "DAMUMED_COMPLETED_JOURNAL" }
+                    .sumOf { it.factCount }
+                val status = when {
+                    analyzerEvents == 0 && damumedFacts == 0 -> "NO_SOURCE_DATA"
+                    analyzerEvents == 0 -> "NO_ANALYZER_REPORT"
+                    damumedFacts == 0 -> "NO_DAMUMED_REPORT"
+                    else -> "COMPARABLE"
+                }
+                val explanation = when (status) {
+                    "NO_ANALYZER_REPORT" -> "В Damumed есть датированные факты, но нет событийного отчёта анализатора за дату."
+                    "NO_DAMUMED_REPORT" -> "Есть событийный отчёт анализатора, но нет датированного журнала Damumed за дату."
+                    "NO_SOURCE_DATA" -> "За дату нет датированного журнала Damumed и нет событийного отчёта анализатора."
+                    else -> "Оба источника покрывают дату; факты можно сравнивать."
+                }
+                ReconciliationCoverageDay(
+                    date = date,
+                    analyzerId = effectiveAnalyzerId,
+                    analyzerEventCount = analyzerEvents,
+                    analyzerXmlSnapshotCount = xmlSnapshots,
+                    damumedFactCount = damumedFacts,
+                    comparisonStatus = status,
+                    explanation = explanation,
+                )
+            }
+        }
     }
 
     override suspend fun getByAnalyzer(dateFrom: LocalDate, dateTo: LocalDate): List<ReconciliationAnalyzerSummary> {
@@ -320,6 +505,7 @@ class ReconciliationSummaryServiceImpl(
                 val lis        = aRows.sumOf { it.lisCount }
                 val reconciled = aRows.sumOf { it.reconciledCount }
                 val discrep    = aRows.sumOf { it.discrepancyCount }
+                val noComparableEvidence = aRows.sumOf { it.noComparableEvidenceCount }
                 val wasted     = aRows.fold(BigDecimal.ZERO) { acc, r -> acc + r.estimatedWastedCostTenge }
                 ReconciliationAnalyzerSummary(
                     analyzerId      = aid,
@@ -327,6 +513,7 @@ class ReconciliationSummaryServiceImpl(
                     logsCount       = logs,
                     lisCount        = lis,
                     discrepancyCount = discrep,
+                    noComparableEvidenceCount = noComparableEvidence,
                     reconciledCount  = reconciled,
                     discrepancyRate  = if (logs > 0) discrep.toDouble() / logs else 0.0,
                     wastedCostTenge  = wasted,
@@ -360,12 +547,14 @@ class ReconciliationSummaryServiceImpl(
                 discrepancyCount      = discrep,
                 reconciledCount       = entity.reconciledCount,
                 pendingGraceCount     = entity.pendingGraceCount,
+                noComparableEvidenceCount = entity.noComparableEvidenceCount,
                 discrepancyRate       = if (logs > 0) discrep.toDouble() / logs else 0.0,
                 wastedCostTenge       = entity.estimatedWastedCostTenge,
                 lisPricePerTestTenge  = entity.lisPricePerTestTenge,
                 status                = when {
                     logs == 0              -> ReconciliationStatus.NO_DATA
                     discrep > 0            -> ReconciliationStatus.DISCREPANCY
+                    entity.noComparableEvidenceCount > 0 -> ReconciliationStatus.NO_COMPARABLE_EVIDENCE
                     entity.pendingGraceCount > 0 -> ReconciliationStatus.PENDING_GRACE
                     else                   -> ReconciliationStatus.CLEAN
                 },
@@ -399,6 +588,17 @@ class ReconciliationSummaryServiceImpl(
 
     override suspend fun promoteExpiredGraceSamples(batchSize: Int): Int {
         val now = LocalDateTime.now()
+        val candidates = sampleReconciliationRepository.findExpiredGraceSamples(now, batchSize).toList()
+        if (candidates.isEmpty()) return 0
+
+        /*
+         * Rebuild before promotion. A late Damumed upload or missing coverage
+         * can turn an old PENDING_GRACE row into LEGITIMATE or
+         * NO_COMPARABLE_EVIDENCE; neither may be promoted to a discrepancy.
+         */
+        val candidateDates = candidates.map { it.sampleDate }.toSet()
+        rebuildForDateRange(candidateDates.min(), candidateDates.max(), null)
+
         val expired = sampleReconciliationRepository.findExpiredGraceSamples(now, batchSize).toList()
         if (expired.isEmpty()) return 0
 
@@ -435,6 +635,8 @@ class ReconciliationSummaryServiceImpl(
     private fun resolveSampleStatus(row: SampleRow): SampleReconciliationStatus = when {
         row.isWashTest                     -> SampleReconciliationStatus.WASH_TEST
         row.classification == SampleClassification.PROBABLE_RERUN -> SampleReconciliationStatus.RERUN
+        row.isContextualSnapshot           -> SampleReconciliationStatus.NO_COMPARABLE_EVIDENCE
+        !row.hasComparableDamumedFacts     -> SampleReconciliationStatus.NO_COMPARABLE_EVIDENCE
         row.isReconciled                   -> SampleReconciliationStatus.LEGITIMATE
         row.isInGraceWindow                -> SampleReconciliationStatus.PENDING_GRACE
         else                               -> SampleReconciliationStatus.DISCREPANCY
@@ -464,6 +666,8 @@ class ReconciliationSummaryServiceImpl(
         val sampleTimestamp: LocalDateTime,
         val graceHours: Int,
         val now: LocalDateTime,
+        val hasComparableDamumedFacts: Boolean,
+        val isContextualSnapshot: Boolean,
     ) {
         val isWashTest: Boolean get() =
             classification == SampleClassification.WASH_TEST
@@ -476,6 +680,25 @@ class ReconciliationSummaryServiceImpl(
             if (graceHours <= 0) return false
             val graceDeadline = sampleTimestamp.plusHours(graceHours.toLong())
             return now.isBefore(graceDeadline)
+        }
+
+        val hasNoComparableEvidence: Boolean get() =
+            (!hasComparableDamumedFacts || isContextualSnapshot) &&
+                !isWashTest &&
+                classification != SampleClassification.PROBABLE_RERUN
+
+        val comparisonAvailability: ComparisonAvailability get() = when {
+            isContextualSnapshot -> ComparisonAvailability.CONTEXTUAL_ANALYZER_SNAPSHOT
+            !hasComparableDamumedFacts -> ComparisonAvailability.NO_DAMUMED_REPORT
+            else -> ComparisonAvailability.COMPARABLE
+        }
+
+        val comparisonReason: String? get() = when (comparisonAvailability) {
+            ComparisonAvailability.NO_DAMUMED_REPORT ->
+                "За дату образца нет датированного журнала Damumed; сравнение не выполняется."
+            ComparisonAvailability.CONTEXTUAL_ANALYZER_SNAPSHOT ->
+                "Источник errors.xml является контекстным снимком без достоверного времени события."
+            else -> null
         }
     }
 

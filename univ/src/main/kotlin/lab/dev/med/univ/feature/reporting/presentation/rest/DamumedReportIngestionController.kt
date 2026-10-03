@@ -20,7 +20,6 @@ import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedNormalizedRe
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedOperationalOverviewUseCase
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedParsedWorkbookPreviewUseCase
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedReferralCountByMaterialProcessedViewUseCase
-import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedReferralRegistrationSummaryUseCase
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedReportSourceSettingsUseCase
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedReportUploadsUseCase
 import lab.dev.med.univ.feature.reporting.domain.usecases.GetDamumedWorkplaceCompletedStudiesProcessedViewUseCase
@@ -56,6 +55,7 @@ import project.gigienist_reports.core.config.api.Controller
 import project.gigienist_reports.core.security.SessionUser
 import project.gigienist_reports.core.security.firebase.FirebaseSecurityUtils
 import project.gigienist_reports.feature.users.domain.services.UserAggregateService
+import lab.dev.med.univ.feature.reporting.domain.services.DamumedFastOperationalMetricsService
 
 @RestController
 @RequestMapping("/api/damumed-reports")
@@ -64,7 +64,7 @@ import project.gigienist_reports.feature.users.domain.services.UserAggregateServ
 class DamumedReportIngestionController(
     logger: Logger,
     private val getOperationalOverviewUseCase: GetDamumedOperationalOverviewUseCase,
-    private val getReferralRegistrationSummaryUseCase: GetDamumedReferralRegistrationSummaryUseCase,
+    private val fastMetricsService: DamumedFastOperationalMetricsService,
     private val getEmployeeCompletedStudiesSummaryProcessedViewUseCase: GetDamumedEmployeeCompletedStudiesSummaryProcessedViewUseCase,
     private val getNormalizedReportPreviewUseCase: GetDamumedNormalizedReportPreviewUseCase,
     private val getParsedWorkbookPreviewUseCase: GetDamumedParsedWorkbookPreviewUseCase,
@@ -98,7 +98,7 @@ class DamumedReportIngestionController(
     @GetMapping("/referral-registration-summary")
     suspend fun getReferralRegistrationSummary(): ResponseEntity<DamumedReferralRegistrationSummary> {
         return try {
-            ResponseEntity.ok(getReferralRegistrationSummaryUseCase())
+            ResponseEntity.ok(fastMetricsService.referralRegistrationSummary())
         } catch (ex: Exception) {
             throw mapException(ex)
         }

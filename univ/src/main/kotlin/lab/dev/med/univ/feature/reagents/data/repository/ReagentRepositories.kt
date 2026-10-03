@@ -12,7 +12,9 @@ import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogParseStatus
 import lab.dev.med.univ.feature.reagents.domain.models.AnalyzerLogSourceType
 import lab.dev.med.univ.feature.reagents.domain.models.ReagentInventoryStatus
 import lab.dev.med.univ.feature.reagents.domain.models.SampleClassification
+import org.springframework.data.r2dbc.repository.Query
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
+import java.time.LocalDateTime
 
 interface AnalyzerRepository : CoroutineCrudRepository<AnalyzerEntity, String> {
     fun findAllByOrderByNameAsc(): Flow<AnalyzerEntity>
@@ -56,6 +58,14 @@ interface AnalyzerLogUploadRepository : CoroutineCrudRepository<AnalyzerLogUploa
         analyzerId: String,
         sourceType: AnalyzerLogSourceType,
     ): AnalyzerLogUploadEntity?
+
+    @Query("""
+        SELECT MAX(COALESCE(log_period_end, uploaded_at))
+        FROM analyzer_log_uploads
+        WHERE source_type = 'APPLOGS'
+          AND parse_status = 'PARSED'
+    """)
+    suspend fun findLatestParsedApplogsEventAt(): LocalDateTime?
 }
 
 interface ParsedAnalyzerSampleRepository : CoroutineCrudRepository<ParsedAnalyzerSampleEntity, String> {

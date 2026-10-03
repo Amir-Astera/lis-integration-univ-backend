@@ -33,4 +33,6 @@ data class ReconciliationCaseAuditHistoryEntity(
     val assignedTo: String? = null,
     val changedBy: String? = null,
     val changedAt: LocalDateTime = LocalDateTime.now(),
+    @Version
+    val version: Long? = null,
 )

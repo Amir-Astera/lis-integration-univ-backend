@@ -1,6 +1,7 @@
 package project.gigienist_reports.feature.authorization.domain.usecases
 
 import project.gigienist_reports.feature.authorization.presentation.dto.UserInfo
+import project.gigienist_reports.core.security.SessionUser
 import kotlinx.coroutines.reactive.awaitFirst
 import org.springframework.http.HttpStatus
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken
@@ -18,7 +19,17 @@ interface CurrentSessionUseCase {
 internal class CurrentSessionUseCaseImpl: CurrentSessionUseCase {
     override suspend fun invoke(exchange: ServerWebExchange): Mono<UserInfo> {
         return exchange.getPrincipal<PreAuthenticatedAuthenticationToken>().map { principal ->
-            Mono.just(UserInfo(email = principal.name))
+            val sessionUser = principal.principal as? SessionUser
+            val authorities = sessionUser?.authorities
+                ?.map { it.authority }
+                .orEmpty()
+            Mono.just(
+                UserInfo(
+                    email = sessionUser?.login ?: principal.name,
+                    authorities = authorities,
+                    isAdmin = authorities.any { it.equals("admin", ignoreCase = true) },
+                ),
+            )
         }.switchIfEmpty {
             Mono.error(ResponseStatusException(HttpStatus.UNAUTHORIZED, "Пользователь не авторизован"))
         }.awaitFirst()

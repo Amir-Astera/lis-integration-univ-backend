@@ -83,7 +83,6 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
     private val applogsParserService: ApplogsParserService,
     private val errorsXmlParserService: ErrorsXmlParserService,
     private val logAnomalyAnalysisService: LogAnomalyAnalysisService,
-    private val completedJournalReconciliationService: AnalyzerLogCompletedJournalReconciliationService,
     private val reconciliationSummaryService: ReconciliationSummaryService,
 ) : AnalyzerLogUploadIngestionService {
 
@@ -193,7 +192,13 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         val content = readStoredContent(processing.storagePath)
         val parsed = applogsParserService.parse(processing.id, processing.analyzerId, content)
 
-        val reconciledSamples = completedJournalReconciliationService.reconcileApplogsSamples(parsed.samples)
+        /*
+         * Do not mutate the raw parsed classification using the full historical
+         * completed-journal index here. Comparability is date-bounded and is
+         * resolved during reconciliation rebuild; otherwise an old journal row
+         * could silently validate a later analyzer event.
+         */
+        val reconciledSamples = parsed.samples
 
         // Idempotent re-parse: drop samples that previously belonged to THIS upload
         // (e.g. retry after a parse failure). Cross-upload deduplication is handled below.
@@ -212,35 +217,66 @@ internal class AnalyzerLogUploadIngestionServiceImpl(
         // within the same time window. Combined with the unique partial index installed in
         // V27 (uq_parsed_sample_dedupe), this makes duplicate inserts impossible.
         val analyzerId = processing.analyzerId
-        val (uniqueSamples, droppedDuplicates) = if (analyzerId != null && reconciledSamples.isNotEmpty()) {
+        val (uniqueSamples, duplicateSamples) = if (analyzerId != null && reconciledSamples.isNotEmpty()) {
             val candidates = reconciledSamples.filter { it.barcode.isNotBlank() }
             if (candidates.isEmpty()) {
-                reconciledSamples to 0
+                reconciledSamples to emptyList()
             } else {
                 val minTs = candidates.minOf { it.sampleTimestamp }
                 val maxTs = candidates.maxOf { it.sampleTimestamp }
-                val existingKeys = parsedAnalyzerSampleRepository
+                val existingByKey = parsedAnalyzerSampleRepository
                     .findAllByAnalyzerIdAndSampleTimestampBetweenOrderBySampleTimestampAsc(
                         analyzerId, minTs, maxTs,
                     )
                     .toList()
-                    .map { it.barcode to it.sampleTimestamp }
-                    .toSet()
+                    .associateBy { it.barcode to it.sampleTimestamp }
 
                 val filtered = reconciledSamples.filter { sample ->
                     sample.barcode.isBlank() ||
-                        (sample.barcode to sample.sampleTimestamp) !in existingKeys
+                        (sample.barcode to sample.sampleTimestamp) !in existingByKey
                 }
-                filtered to (reconciledSamples.size - filtered.size)
+                val duplicates = reconciledSamples.mapNotNull { sample ->
+                    existingByKey[sample.barcode to sample.sampleTimestamp]?.let { existing -> existing to sample }
+                }
+                filtered to duplicates
             }
         } else {
-            reconciledSamples to 0
+            reconciledSamples to emptyList()
         }
 
-        if (droppedDuplicates > 0) {
+        if (duplicateSamples.isNotEmpty()) {
+            /*
+             * A later log snapshot may carry fields that an older parsed row
+             * did not preserve (for example ServiceMo.Code/ServiceID). Keep
+             * the physical-event deduplication invariant while enriching the
+             * retained sample with non-null metadata from the new payload.
+             */
+            duplicateSamples.forEach { (existing, sample) ->
+                parsedAnalyzerSampleRepository.save(
+                    existing.copy(
+                        deviceSystemName = existing.deviceSystemName ?: sample.deviceSystemName,
+                        deviceName = existing.deviceName ?: sample.deviceName,
+                        lisAnalyzerId = existing.lisAnalyzerId ?: sample.lisAnalyzerId,
+                        testMode = existing.testMode ?: sample.testMode,
+                        bloodMode = existing.bloodMode ?: sample.bloodMode,
+                        takeMode = existing.takeMode ?: sample.takeMode,
+                        orderResearchId = existing.orderResearchId ?: sample.orderResearchId,
+                        orderId = existing.orderId ?: sample.orderId,
+                        serviceId = existing.serviceId ?: sample.serviceId,
+                        serviceCode = existing.serviceCode ?: sample.serviceCode,
+                        serviceName = existing.serviceName ?: sample.serviceName,
+                        hasLisOrder = existing.hasLisOrder || sample.hasLisOrder,
+                        sampleRequestCount = maxOf(existing.sampleRequestCount, sample.sampleRequestCount),
+                        wbcValue = existing.wbcValue ?: sample.wbcValue,
+                        rbcValue = existing.rbcValue ?: sample.rbcValue,
+                        hgbValue = existing.hgbValue ?: sample.hgbValue,
+                        pltValue = existing.pltValue ?: sample.pltValue,
+                    ),
+                )
+            }
             log.info(
-                "Applogs upload {}: skipped {} duplicate sample(s) already present for analyzer {} in [{}, {}]",
-                processing.id, droppedDuplicates, analyzerId, parsed.logPeriodStart, parsed.logPeriodEnd,
+                "Applogs upload {}: enriched {} existing physical sample(s) for analyzer {} in [{}, {}]",
+                processing.id, duplicateSamples.size, analyzerId, parsed.logPeriodStart, parsed.logPeriodEnd,
             )
         }
 

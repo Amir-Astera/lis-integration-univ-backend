@@ -32,8 +32,28 @@ internal class ApplogsParserServiceImpl(
         val hl7QueueByBarcode = mutableMapOf<String, ArrayDeque<Hl7SampleSnapshot>>()
         val samples = mutableListOf<SampleBuilder>()
         var activeSample: SampleBuilder? = null
+        var pendingJsonPayload: PendingJsonPayload? = null
 
         events.forEach { event ->
+            /*
+             * On the hospital BS-240 driver, "Save string:" is often one
+             * timestamped log event and its JSON is the following separate
+             * timestamped Information event. Do not require JSON to be a
+             * continuation line of the marker event.
+             */
+            pendingJsonPayload?.let { pending ->
+                val json = event.messageText.trim()
+                if (json.startsWith("{")) {
+                    when (pending.kind) {
+                        PendingJsonKind.SAVED -> parseSavedJson(pending.sample, json)
+                        PendingJsonKind.DRAFT -> parseDraftJson(pending.sample, json)
+                    }
+                    pendingJsonPayload = null
+                    return@forEach
+                }
+                pendingJsonPayload = null
+            }
+
             if (event.timestamp != null && event.messageText.startsWith("Received bytes(encoded):")) {
                 parseHl7Payload(event.messageText)
                     ?.let { snapshot ->
@@ -89,11 +109,19 @@ internal class ApplogsParserServiceImpl(
             }
 
             if (event.messageText.startsWith("Save string:")) {
-                extractPayloadBody(event.messageText, "Save string:")
-                    ?.let { parseSavedJson(current, it) }
+                val payload = extractPayloadBody(event.messageText, "Save string:")
+                if (payload != null) {
+                    parseSavedJson(current, payload)
+                } else {
+                    pendingJsonPayload = PendingJsonPayload(current, PendingJsonKind.SAVED)
+                }
             } else if (event.messageText.startsWith("Result object to save:")) {
-                extractPayloadBody(event.messageText, "Result object to save:")
-                    ?.let { parseDraftJson(current, it) }
+                val payload = extractPayloadBody(event.messageText, "Result object to save:")
+                if (payload != null) {
+                    parseDraftJson(current, payload)
+                } else {
+                    pendingJsonPayload = PendingJsonPayload(current, PendingJsonKind.DRAFT)
+                }
             }
         }
 
@@ -218,6 +246,7 @@ internal class ApplogsParserServiceImpl(
             val serviceMo = orderResearch.path("ServiceMo")
             if (!serviceMo.isMissingNode && !serviceMo.isNull) {
                 builder.serviceId = serviceMo.path("ServiceID").intValue().takeIf { it > 0 }
+                builder.serviceCode = serviceMo.path("Code").asText(null)?.trim()?.takeIf { it.isNotBlank() }
                 builder.serviceName = serviceMo.path("NameRU").asText(null)
             }
         }
@@ -313,6 +342,16 @@ internal class ApplogsParserServiceImpl(
         val pltValue: Double?,
     )
 
+    private data class PendingJsonPayload(
+        val sample: SampleBuilder,
+        val kind: PendingJsonKind,
+    )
+
+    private enum class PendingJsonKind {
+        SAVED,
+        DRAFT,
+    }
+
     private class SampleBuilder(
         val id: String,
         val logUploadId: String,
@@ -330,6 +369,7 @@ internal class ApplogsParserServiceImpl(
         var orderResearchId: Long? = null
         var orderId: Long? = null
         var serviceId: Int? = null
+        var serviceCode: String? = null
         var serviceName: String? = null
         var hasLisOrder: Boolean = false
         var sampleRequestCount: Int = 0
@@ -375,6 +415,7 @@ internal class ApplogsParserServiceImpl(
                 orderResearchId = orderResearchId,
                 orderId = orderId,
                 serviceId = serviceId,
+                serviceCode = serviceCode,
                 serviceName = serviceName,
                 hasLisOrder = hasLisOrder,
                 sampleRequestCount = sampleRequestCount,
